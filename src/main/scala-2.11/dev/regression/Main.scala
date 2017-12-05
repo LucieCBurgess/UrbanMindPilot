@@ -10,8 +10,8 @@ object Main {
 
   /** Switch to INFO if more detail is required but the output is verbose */
 
-  Logger.getLogger("org").setLevel(Level.ERROR)
-  Logger.getLogger("akka").setLevel(Level.ERROR)
+  Logger.getLogger("org").setLevel(Level.INFO)
+  Logger.getLogger("akka").setLevel(Level.INFO)
 
   def main(args: Array[String]): Unit = {
 
@@ -41,25 +41,36 @@ object Main {
         .text(s"Regularization parameter, default: ${defaultParams.regParam}")
         .action((x, c) => c.copy(regParam = x))
 
-      opt[Double]("Standardisation")
-        .text(s"Standardisation parameter, default: ${defaultParams.regParam}")
-        .action((x, c) => c.copy(regParam = x))
+      opt[Boolean]("Standardization")
+        .text(s"Standardisation parameter, default: ${defaultParams.standardParam}")
+        .action((x, c) => c.copy(standardParam = x))
 
+      opt[Double]("Tolerance")
+        .text(s"Tolerance parameter, default: ${defaultParams.tol}")
+        .action((x, c) => c.copy(tol = x))
+
+      opt[Double]("Fraction for Test Data")
+        .text(s"Fraction of data to be held out for testing, default: ${defaultParams.fracTest}")
+        .action((x, c) => c.copy(fracTest = x))
+
+      opt[String]('i', "input")
+        .text(s"input is the input path, default: ${defaultParams.input}")
+        .action {(x, c) => c.copy(input = x)}
+
+//      opt[String]('o', "output")
+//        .text("output is the output path")
+//        .required() action {(x, c) => c.copy(output = x)}
+
+      checkConfig { params =>
+        if (params.fracTest < 0.1 || params.fracTest >= 1) {
+          failure(s"fracTest ${params.fracTest} value is incorrect; it should be in range [0.1,1).")
+        } else {success}
+      }
     }
 
-    /** Parameters for regression in Spark:
-      * elasticNetParam: DoubleParam
-      * fitIntercept: BooleanParam
-      * maxIter: IntParam
-      * regParam: DoubleParam
-      * standardization: BooleanParam
-      * tol: DoubleParam
-      */
-
-
-
-
+    parser.parse(args, defaultParams) match {
+      case Some(params) => RegPipeline.run(params)
+      case _ => sys.exit(1)
+    }
   }
-
-
 }

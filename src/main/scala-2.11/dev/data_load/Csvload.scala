@@ -1,6 +1,5 @@
 package dev.data_load
 
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import scala.util.Try
 
@@ -15,16 +14,17 @@ object Csvload {
     .appName("Data_load_pilot_csv")
     .getOrCreate()
 
-  def createDataFrame(path: String): DataFrame = {
+  def createDataFrame(inputpath: String): Option[DataFrame] = {
 
     import spark.implicits._
 
-    //val path: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_export_Sept_2017_nocalcs.csv"
-
-    val df: DataFrame = spark.read.format("csv")
+    val df: Option[DataFrame] = Try(spark.read.format("csv")
       .option("header", "true")
       .option("inferSchema", "true")
-      .load(path)
+      .load(inputpath)
+      .toDF()
+      .cache())
+      .toOption
     df
   }
 }
