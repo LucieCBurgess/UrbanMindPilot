@@ -1,7 +1,7 @@
 package dev.regression
 
 import dev.data_load.Csvload
-import org.apache.spark.sql.functions.when
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 
@@ -38,25 +38,43 @@ object RegPipeline {
       * AnswerValue should be numeric but contains strings "None"
       * This maps the DF to a column "numeric_answer" which is of IntegerType
       * Allows the DF to be grouped (by assessmentNumber, participant UUID) and pivoted (by Question) so that we can work with the data
-      * However still need to add back:
+      * However still need to add back the remaining columns: Geotag start, Geotag end, etc
       */
     val df2 = df.withColumn("numeric_answer", when($"AnswerValue".startsWith("None"), 0).otherwise($"AnswerValue").cast(IntegerType))
 
-    df2.select("QuestionID","Question","ParticipantUUID","numeric_answer").show(34) //testing purposes
-    df2.printSchema()
+    val df3 = df2.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
+      .orderBy(asc("participantUUID"),asc("assessmentNumber"),asc("QuestionId"))
 
-    val df3 = df2.groupBy("participantUUID","assessmentNumber").pivot("Question").sum("numeric_answer").orderBy("participantUUID")
-    df3.show()
+    val rawOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered.csv"
 
-    val df4 = df3.join(df2,Seq("participantUUID","assessmentNumber"))
+    writeDFtoCsv(df3,rawOutput)
 
+    //df3.select("QuestionID","Question","ParticipantUUID","numeric_answer").show(34) //testing purposes
+    df3.printSchema()
+
+    val df4 = df3.groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
+      .pivot("Q_id_string")
+      .sum("numeric_answer")
+      .orderBy("participantUUID","assessmentNumber")
+
+    df4.show()
+
+    writeDFtoCsv(df4,outputpath)
+
+    //val df4 = df3.join(df2,Seq("participantUUID","assessmentNumber","Question")).show(10) // no ref on LHS of join
 
 
   } //run
 
-  //def convertTextToLikertVals(column: Column): Unit
+  /** Helper functions */
 
-
+  /** Writes dataframe to a single csv file using the given path */
+  def writeDFtoCsv(df: DataFrame, outputPath: String): Unit = {
+    df.coalesce(1)
+      .write.format("com.databricks.spark.csv")
+      .option("header","true")
+      .save(outputPath)
+  }
 
 }
 
