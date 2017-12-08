@@ -8,11 +8,10 @@ import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 /**
   * Created by lucieburgess on 05/12/2017.
   */
-object RegPipeline {
+object DataWrangle {
 
   val defaultParams = RegressionParams()
   val inputpath: String = defaultParams.input
-  val outputpath: String = defaultParams.output
 
   def run(params: RegressionParams): Unit = {
 
@@ -32,7 +31,8 @@ object RegPipeline {
     }
 
     df.printSchema()
-    println(s"Raw dataset contains ${df.count()} lines")
+    println(s"Raw dataset contains ${df.count()} rows")
+    println(s"Raw dataset contains ${df.columns.length} columns")
 
     /**
       * AnswerValue should be numeric but contains strings "None"
@@ -45,21 +45,46 @@ object RegPipeline {
     val df3 = df2.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
       .orderBy(asc("participantUUID"),asc("assessmentNumber"),asc("QuestionId"))
 
-    val rawOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered.csv"
+    val rawOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered_test.csv"
 
     writeDFtoCsv(df3,rawOutput)
-
     //df3.select("QuestionID","Question","ParticipantUUID","numeric_answer").show(34) //testing purposes
     df3.printSchema()
 
+//    // get distinct Q_id_strings from the dataframe
+//    val questions: Array[String] = df3.select("Q_id_string")
+//      .distinct()
+//      .collect()
+//      .map(_.getAs[String]("Q_id_string"))
+//
+//    // add column for each Q_id_string with the AnswerText value if Q_id_string matches:
+//    val withQIDColumns = questions.foldLeft(df3) {
+//      case (data, question) => data.selectExpr("*", s"IF(Q_id_string = '$question', AnswerText, 0) AS $question")
+//    }
+//
+//    // wrap it up
+//    val result = withQIDColumns
+//      .drop("Q_id_string")
+//        .drop("QuestionId")
+//        .drop("Question")
+//        .drop("AnswerText")
+//        .drop("TimeAnswered")
+//      .groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
+//      .sum(questions: _*)
+//
+//    result.show()
+
+
     val df4 = df3.groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
       .pivot("Q_id_string")
-      .sum("numeric_answer")
+      .agg(first("AnswerText")) //solves the aggregate function must be numeric problem
       .orderBy("participantUUID","assessmentNumber")
 
     df4.show()
 
-    writeDFtoCsv(df4,outputpath)
+    val pivotedOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/output_test.csv"
+
+    writeDFtoCsv(df4,pivotedOutput)
 
     //val df4 = df3.join(df2,Seq("participantUUID","assessmentNumber","Question")).show(10) // no ref on LHS of join
 

@@ -69,7 +69,7 @@ object Main {
     }
 
     parser.parse(args, defaultParams) match {
-      case Some(params) => RegPipeline.run(params)
+      case Some(params) => DataWrangle.run(params)
       case _ => sys.exit(1)
     }
   }

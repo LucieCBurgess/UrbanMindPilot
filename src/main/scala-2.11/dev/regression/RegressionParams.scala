@@ -25,6 +25,5 @@ case class RegressionParams(elasticNetParam: Double = 0.0,
                             standardParam: Boolean = false,
                             tol: Double = 1E-6,
                             fracTest: Double = 0.5,
-                            input: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw.csv",
-                            output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/output.csv")
+                            input: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw_test.csv")
 
