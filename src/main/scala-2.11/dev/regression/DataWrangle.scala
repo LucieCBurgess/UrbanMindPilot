@@ -35,10 +35,8 @@ object DataWrangle {
     println(s"Raw dataset contains ${df.columns.length} columns")
 
     /**
-      * AnswerValue should be numeric but contains strings "None"
-      * This maps the DF to a column "numeric_answer" which is of IntegerType
-      * Allows the DF to be grouped (by assessmentNumber, participant UUID) and pivoted (by Question) so that we can work with the data
-      * However still need to add back the remaining columns: Geotag start, Geotag end, etc
+      * Pivots the dataframe so that each question is a column in the DF
+      * Still need to combine 'AnswerText' and 'AnswerValue' columns
       */
     val df2 = df.withColumn("numeric_answer", when($"AnswerValue".startsWith("None"), 0).otherwise($"AnswerValue").cast(IntegerType))
 
@@ -48,35 +46,11 @@ object DataWrangle {
     val rawOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered_test.csv"
 
     writeDFtoCsv(df3,rawOutput)
-    //df3.select("QuestionID","Question","ParticipantUUID","numeric_answer").show(34) //testing purposes
     df3.printSchema()
-
-//    // get distinct Q_id_strings from the dataframe
-//    val questions: Array[String] = df3.select("Q_id_string")
-//      .distinct()
-//      .collect()
-//      .map(_.getAs[String]("Q_id_string"))
-//
-//    // add column for each Q_id_string with the AnswerText value if Q_id_string matches:
-//    val withQIDColumns = questions.foldLeft(df3) {
-//      case (data, question) => data.selectExpr("*", s"IF(Q_id_string = '$question', AnswerText, 0) AS $question")
-//    }
-//
-//    // wrap it up
-//    val result = withQIDColumns
-//      .drop("Q_id_string")
-//        .drop("QuestionId")
-//        .drop("Question")
-//        .drop("AnswerText")
-//        .drop("TimeAnswered")
-//      .groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
-//      .sum(questions: _*)
-//
-//    result.show()
 
 
     val df4 = df3.groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
-      .pivot("Q_id_string")
+      .pivot("Q_id_string") // and pivot by question?
       .agg(first("AnswerText")) //solves the aggregate function must be numeric problem
       .orderBy("participantUUID","assessmentNumber")
 
@@ -85,11 +59,7 @@ object DataWrangle {
     val pivotedOutput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/output_test.csv"
 
     writeDFtoCsv(df4,pivotedOutput)
-
-    //val df4 = df3.join(df2,Seq("participantUUID","assessmentNumber","Question")).show(10) // no ref on LHS of join
-
-
-  } //run
+  }
 
   /** Helper functions */
 

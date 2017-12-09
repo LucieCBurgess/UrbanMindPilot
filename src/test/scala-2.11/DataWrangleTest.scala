@@ -1,6 +1,6 @@
 import dev.data_load.Csvload
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{asc, concat, lit, regexp_replace}
+import org.apache.spark.sql.functions.{asc, concat, lit, regexp_replace, when}
 import org.scalatest.FunSuite
 
 /**
@@ -50,16 +50,18 @@ class DataWrangleTest extends FunSuite {
 
   test("[04] Create an array string from the Q_id_string column") {
 
-    val df3 = df2.withColumn("Q_id_string_new", regexp_replace(df2("Q_id_string"), "\\'", ""))
+    import spark.implicits._
 
-    val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
+    //val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2("Q_id_string"), "\\'", ""))
 
-    df4.printSchema()
+    //val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
 
-    val questions: Array[String] = df4.select("Q_id_string_new_2")
+    //df3.printSchema()
+
+    val questions: Array[String] = df2.select("Q_id_string")
       .distinct()
       .collect()
-      .map(_.getAs[String]("Q_id_string_new_2"))
+      .map(_.getAs[String]("Q_id_string"))
       .sortWith(_<_)
 
     assertResult(110) {
@@ -68,17 +70,29 @@ class DataWrangleTest extends FunSuite {
 
     println(questions.mkString(","))
 
-    assert(questions(0).equals("101_Who_is_with_you_right_now?"))
-    assert(questions(1).equals("102_What_are_you_doing_right_now?"))
-    assert(questions(questions.length-1).equals("8_How_would_you_rate_your_mental_health_overall?"))
+    assert(questions(0).equals("101_Who is with you right now?"))
+    assert(questions(1).equals("102_What are you doing right now?"))
+    assert(questions(questions.length-1).equals("8_How would you rate your mental health overall?"))
 
-    // Test passes up to here - see StackOverflow question
-
-    val df5: DataFrame = questions.foldLeft(df4) {
-      case (data, question) => data.selectExpr("*", s"IF(Q_id_string_new_2 = '$question', AnswerText, 0) AS $question")
+    val df3: DataFrame = questions.foldLeft(df2) {
+      case (data, question) =>
+        data.withColumn(question, when($"Q_id_string" === question, $"AnswerText"))
     }
 
-    df5.printSchema()
+    df3.printSchema()
+
+    //    // wrap it up - intrigued to see if we can make this work ...
+    //    val result = withQIDColumns
+    //      .drop("Q_id_string")
+    //        .drop("QuestionId")
+    //        .drop("Question")
+    //        .drop("AnswerText")
+    //        .drop("TimeAnswered")
+    //      .groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
+    //      .sum(questions: _*)
+    //
+    //    result.show()
+
 
   }
 }
