@@ -1,6 +1,7 @@
 import dev.data_load.Csvload
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{asc, concat, lit, regexp_replace, when}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.IntegerType
 import org.scalatest.FunSuite
 
 /**
@@ -48,21 +49,36 @@ class DataWrangleTest extends FunSuite {
     }
   }
 
-  test("[04] Create an array string from the Q_id_string column") {
+  test("[04] Delete Q_ids relating to games") {
 
-    import spark.implicits._
+    val df3 = df2.filter($"QuestionId" <2000)
+    assertResult(480-60) {
+      df3.count()
+    }
+  }
 
-    //val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2("Q_id_string"), "\\'", ""))
+  test ("[05] Add a new column of StringType which combines the string and numeric answers") {
+    val df3 = df2.withColumn("validated_response", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
 
-    //val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
+    df3.printSchema()
+    df3.createOrReplaceTempView("datatable")
 
-    //df3.printSchema()
+    val result = spark.sql("SELECT AnswerText FROM datatable WHERE participantUUID='010A0550-4324-4900-9A19-FE1AFE992820_1462374706' AND assessmentNumber=0 AND Q_id_string = '2_Gender'")
+    assertResult("Female") {
+      result.collect.head.getString(0)
+    }
+
+    //val result2 = spark.sql(("SELECT AnswerValue FROM datatable WHERE participantUUID='010A0550-4324-4900-9A19-FE1AFE992820_1462374706' AND assessmentNumber=0 AND Q_id_string = '1_Age'")
+
+  }
+
+  test("[06] Create an array string from the Q_id_string column and use it to pivot dataframe") {
 
     val questions: Array[String] = df2.select("Q_id_string")
       .distinct()
       .collect()
       .map(_.getAs[String]("Q_id_string"))
-      .sortWith(_<_)
+      .sortWith(_ < _)
 
     assertResult(110) {
       questions.length
@@ -72,7 +88,7 @@ class DataWrangleTest extends FunSuite {
 
     assert(questions(0).equals("101_Who is with you right now?"))
     assert(questions(1).equals("102_What are you doing right now?"))
-    assert(questions(questions.length-1).equals("8_How would you rate your mental health overall?"))
+    assert(questions(questions.length - 1).equals("8_How would you rate your mental health overall?"))
 
     val df3: DataFrame = questions.foldLeft(df2) {
       case (data, question) =>
@@ -80,6 +96,11 @@ class DataWrangleTest extends FunSuite {
     }
 
     df3.printSchema()
+
+  }
+
+
+
 
     //    // wrap it up - intrigued to see if we can make this work ...
     //    val result = withQIDColumns
@@ -93,8 +114,12 @@ class DataWrangleTest extends FunSuite {
     //
     //    result.show()
 
+    //val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2("Q_id_string"), "\\'", ""))
 
-  }
+    //val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
+
+    //df3.printSchema()
+
 }
 
 
