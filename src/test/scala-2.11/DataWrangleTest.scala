@@ -172,7 +172,6 @@ class DataWrangleTest extends FunSuite {
     }
 
     df3.printSchema()
-
   }
 
   test("[08] Pivot dataframe using Q_id_string and re-order it in order of Question") {
