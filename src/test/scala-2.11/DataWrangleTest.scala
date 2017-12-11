@@ -65,6 +65,11 @@ class DataWrangleTest extends FunSuite {
     assertResult(10) {
       df2.columns.length
     }
+
+    /** 110 distinct Q_ids including Games questions */
+    assertResult(110){
+      df2.select($"Q_id_string").distinct.collect.length
+    }
   }
 
   test("[05] Filter out Q_ids relating to games") {
@@ -72,6 +77,10 @@ class DataWrangleTest extends FunSuite {
     val df3 = df2.filter($"QuestionId" <2000)
     assertResult(480-60) {
       df3.count()
+    }
+
+    assertResult(105) {
+      df3.select($"Q_id_string").distinct.collect.length
     }
   }
 
@@ -181,6 +190,8 @@ class DataWrangleTest extends FunSuite {
 
     val numberOfRows: Int = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd").count().distinct().collect().length
 
+    println(s"*********** Number of rows in the pivoted dataset is $numberOfRows ************")
+
     assert(df4.count() === numberOfRows)
 
   }
@@ -197,11 +208,72 @@ class DataWrangleTest extends FunSuite {
   }
 
   test("[10] Create a new DataFrame with the columns we want and cache it") {
-    val columns: Array[String] = df2.columns
+    val columnNames = df2.columns
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","Q_id_string","AnswerText","AnswerValue","geotagStart","geoTagEnd")
     val result: DataFrame = df2.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
 
     result.printSchema()
+  }
+
+  /** Delete "'", "," and "?" from SQL column names */
+  test("[11] Deal with unusual characters in SQL strings") {
+
+    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
+    df3.printSchema()
+
+    val result: String = df3.select($"Q_id_string_cleaned").as[String].collect().mkString("")
+    def containsNoSpecialChars(string: String) = string.matches("^[a-zA-Z0-9][^'?,:.]*$")
+    assertResult(true){
+      containsNoSpecialChars(result)
+    }
+  }
+
+  /**
+    * Now check everything works for the test file in the following order:
+    * Load the DF
+    * Filter out game responses as not relevant
+    * Add leading zeros to QuestionId
+    * Concatenate QuestionId and Question with leading zeros to give Q_id_string e.g. 001_Age, 015_Do you meander and daydream as you walk?
+    * Order by participantUUID,assessmentNumber,Q_id_string
+    * Combine AnswerText and AnswerValue to get ValidatedResponse
+    * Pivot dataframe using Q_id_string
+    * Re-order it in order of: ParticipantUUID, assessmentNumber, Q_id_string, GeoTagStart, GeoTagEnd, Questions in ascending order
+    * Finally re-set the schema of each column so that it corresponds to the correct type e.g. 1-2 times should be a string, 8am should be
+    */
+  test("[12] Putting it all together") {
+
+    val addLeadingZeros: (Int => String) = s => "%03d".format(s)
+    val newCol = udf(addLeadingZeros).apply(col("QuestionId")) // creates the new column
+
+    val df2 = df.filter($"QuestionId" <2000)
+      .withColumn("Q_id_new", newCol)
+      .withColumn("Q_id_string", concat($"Q_id_new", lit("_"), $"Question"))
+      .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
+      .withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
+
+    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\',\\:,\\.]",""))
+
+    val columnNames: Array[String] = df3.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
+
+    assert(columnNames.length === 105)
+
+    val df4 = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
+      .pivot("Q_id_string_cleaned") // and pivot by question?
+      .agg(first("ValidatedResponse")) //solves the aggregate function must be numeric problem
+      .orderBy("participantUUID", "assessmentNumber")
+
+    val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","geotagStart","geoTagEnd") ++ columnNames
+
+    assert(reorderedColumnNames.length === 109)
+
+    println("************** "+reorderedColumnNames.mkString(",")+" ***********")
+
+    val df5: DataFrame = df4.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
+
+    val numberOfRows: Int = df2.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd").count().distinct().collect().length
+
+    assert(df5.count === numberOfRows)
+    assert(df5.columns.length === reorderedColumnNames.length)
 
   }
 
@@ -217,8 +289,6 @@ class DataWrangleTest extends FunSuite {
     //      .sum(questions: _*)
     //
     //    result.show()
-
-    //val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2("Q_id_string"), "\\'", ""))
 
     //val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
 
