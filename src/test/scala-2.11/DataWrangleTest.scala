@@ -234,7 +234,7 @@ class DataWrangleTest extends FunSuite {
   // column, "ImpulseAnswerValue". Otherwise
   test("[13] Calculate impulsivity score for the impulsivity score questions ") {
 
-    def calculateScore = udf((questionId: Int, answerVal: String) => (questionId, answerVal) match {
+    def calculateScore = udf((questionId: Int, answerText: String) => (questionId, answerText) match {
 
       case ((31 | 32 | 33 | 34 | 35), "Rarely /<br>Never") => 4
       case ((31 | 32 | 33 | 34 | 35), "Occasionally") => 3
@@ -247,7 +247,7 @@ class DataWrangleTest extends FunSuite {
       case _ => 0
     })
 
-    val df3 = df2.withColumn("ImpulseAnswerValue", calculateScore(df2("QuestionId"), df2("AnswerValue")))
+    val df3 = df2.withColumn("ImpulseAnswerValue", calculateScore(df2("QuestionId"), df2("AnswerText")))
 
     df3.printSchema()
 
