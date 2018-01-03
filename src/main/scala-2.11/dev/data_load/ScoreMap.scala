@@ -18,6 +18,16 @@ object ScoreMap {
     "1-2" -> 280, "3-4" -> 281, "5-6" -> 282, "7-9" -> 283, "10+" -> 284,
     "Never" -> 290, "Less than monthly" -> 291, "Weekly" -> 293, "Daily or almost daily" -> 294)
 
+  //Questions 41-54(baseline) and 131-144 (momentary)
+  val wellBeing = Map("I very much disagree" -> 1, "I slightly disagree" -> 2, "Not sure" -> 3, "I slightly agree" -> 4,
+    "I very much agree" -> 5)
+
+  // Questions 31-35
+  val impulse31to35 = Map("Rarely/Never" -> 4, "Occasionally" -> 3, "Often" -> 2, "Almost Always/Always" -> 1)
+
+  // Questions 36-39
+  val impulse35to39 = Map("Rarely/Never" -> 1, "Occasionally" -> 2, "Often" -> 3, "Almost Always/Always" -> 4)
+
 }
 
 //"Rarely/Never" -> 1, "Occasionally" -> 2, "Often" -> 3, "Almost Always/Always" -> 4,

@@ -1,4 +1,4 @@
-import dev.data_load.Csvload
+import dev.data_load.{Csvload, ScoreMap}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
@@ -39,7 +39,7 @@ class DataWrangleTest extends FunSuite {
       .save(outputPath)
   }
 
-  val outputpath: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/db_1489678713_raw_ordered_test.csv"
+  val outputpath: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered_test.csv"
 
   /** -------------------------------- Tests from here ------------------------------------ */
 
@@ -61,6 +61,7 @@ class DataWrangleTest extends FunSuite {
   }
 
   test("[04] Adding a Q_id_string column concatenates the QuestionId and the Question columns") {
+
     df2.printSchema()
     assertResult(10) {
       df2.columns.length
@@ -197,7 +198,7 @@ class DataWrangleTest extends FunSuite {
 
   test("[09] Add leading zeros to the QuestionId") {
 
-    val addLeadingZeros: (Int => String) = s => "%03d".format(s)
+    val addLeadingZeros: (Int => String) = (s => "%03d".format(s))
 
     val newCol = udf(addLeadingZeros).apply(col("QuestionId")) // creates the new column
     val df3 = df2.withColumn("Q_id_new", newCol) // adds the new column to original
@@ -214,7 +215,7 @@ class DataWrangleTest extends FunSuite {
     result.printSchema()
   }
 
-  /** Delete "'", "," and "?" from SQL column names */
+  /** Delete "'", "," ":" and "?" from SQL column names */
   test("[11] Deal with unusual characters in SQL strings") {
 
     val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
@@ -225,6 +226,37 @@ class DataWrangleTest extends FunSuite {
     assertResult(true){
       containsNoSpecialChars(result)
     }
+  }
+
+  /** Calculate the AnswerValue for the impulsivity score questions, which seems to be wrong */
+  // First match question number. If 31-35 it's an impulsivity question. If 36-39 it's a second set of impulsivity questions
+  // and then match the answer text to a value. If it's an impulsivity question, calculate the correct score and put it in a new
+  // column, "ImpulseAnswerValue". Otherwise
+  test("[13] Calculate impulsivity score for the impulsivity score questions ") {
+
+    def calculateScore = udf((questionId: Int, answerVal: String) => (questionId, answerVal) match {
+
+      case ((31 | 32 | 33 | 34 | 35), "Rarely /<br>Never") => 4
+      case ((31 | 32 | 33 | 34 | 35), "Occasionally") => 3
+      case ((31 | 32 | 33 | 34 | 35), "Often") => 2
+      case ((31 | 32 | 33 | 34 | 35), "Almost always /<br>Always") => 1
+      case ((36 | 37 | 38 | 39), "Rarely /<br>Never") => 1
+      case ((36 | 37 | 38 | 39), "Occasionally") => 2
+      case ((36 | 37 | 38 | 39), "Often") => 3
+      case ((36 | 37 | 38 | 39), "Almost always /<br>Always") => 4
+      case _ => 0
+    })
+
+    val df3 = df2.withColumn("ImpulseAnswerValue", calculateScore(df2("QuestionId"), df2("AnswerValue")))
+
+    df3.printSchema()
+
+    val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/impulsivity_test.csv"
+
+    writeDFtoCsv(df3,output)
+
+    df3.select("QuestionId","AnswerText","AnswerValue","ImpulseAnswerValue").show(50)
+
   }
 
   /**
@@ -250,7 +282,7 @@ class DataWrangleTest extends FunSuite {
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
       .withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
 
-    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\',\\:,\\.]",""))
+    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
 
     val columnNames: Array[String] = df3.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
 
