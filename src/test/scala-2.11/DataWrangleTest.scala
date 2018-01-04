@@ -27,13 +27,13 @@ class DataWrangleTest extends FunSuite {
     case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
   }
 
-  /**
-    * Add a column Q_id_string which concatenates the Q_id and the Question
-    * So e.g. we have a column which contains entries such as 10_Please tell us what time you get up in the morning:
-    * These entries will become column headings in the new data file used for analytics
-    */
-  val df2 = df.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
-    .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
+//  /**
+//    * Add a column Q_id_string which concatenates the Q_id and the Question
+//    * So e.g. we have a column which contains entries such as 10_Please tell us what time you get up in the morning:
+//    * These entries will become column headings in the new data file used for analytics
+//    */
+//  val df2 = df.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
+//    .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
 
   /**
     * Helper method to add a Q_id_string column, tested in test [04] below
@@ -58,6 +58,7 @@ class DataWrangleTest extends FunSuite {
 
   /** Tested by inspection of the output file */
   test("[01] Calling writeDFtoCSv writes the result to a csv file") {
+    val df2 = addQIDStringColumn(df)
     writeDFtoCsv(df2, outputpath)
   }
 
@@ -364,6 +365,78 @@ class DataWrangleTest extends FunSuite {
     val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/impulsivity_test.csv"
     writeDFtoCsv(df3,output)
     df3.select("QuestionId","AnswerText","AnswerValue","ImpulseAnswerValue").show(50)
+  }
+
+  /**
+    * Now do the same for the other questions which should be mapped to scores
+    * Mapping these to strings as we can convert them to the correct type later
+    * and otherwise can't map to the answerText as the return type must be consistent
+    */
+  test("[13] Calculate scores for questions with numeric answers") {
+
+    def calculateScore = udf((questionId: Int, answerText: String) => (questionId, answerText) match {
+
+      case (x, "Never")     if 13 to 22 contains x => "1"
+      case (x, "Rarely")    if 13 to 22 contains x => "2"
+      case (x, "Sometimes") if 13 to 22 contains x => "3"
+      case (x, "Often")     if 13 to 22 contains x => "4"
+      case (x, "Always")    if 13 to 22 contains x => "5"
+
+      case (x, "Rarely /<br>Never") if 31 to 35 contains x => "4"
+      case (x, "Occasionally")      if 31 to 35 contains x => "3"
+      case (x, "Often")             if 31 to 35 contains x => "2"
+      case (x, "Almost always /<br>Always") if 31 to 35 contains x => "1"
+
+      case (x, "Rarely /<br>Never") if 36 to 39 contains x => "1"
+      case (x, "Occasionally")      if 36 to 39 contains x => "2"
+      case (x, "Often")             if 36 to 39 contains x => "3"
+      case (x, "Almost always /<br>Always") if 36 to 39 contains x => "4"
+
+      case (x, "None of<br>the time") if 41 to 54 contains x => "1"
+      case (x, "Rarely")              if 41 to 54 contains x => "2"
+      case (x, "Some of<br>the time") if 41 to 54 contains x => "3"
+      case (x, "Often")               if 41 to 54 contains x => "4"
+      case (x, "All of<br>the time")  if 41 to 54 contains x => "5"
+
+      case (27, "Never") => "0"
+      case (27, "Monthly or less") => "1"
+      case (27, "2-4 times per month") => "2"
+      case (27, "2-3 times per week") => "3"
+      case (27, "4+ times per week") => "4"
+
+      case (28 | 152, "1-2") => "0"
+      case (28 | 152, "3-4") => "1"
+      case (28 | 152, "5-6") => "2"
+      case (28 | 152, "7-9") => "3"
+      case (28 | 152, "10+") => "4"
+      case (28 | 152, "01-Feb") => "0"
+      case (28 | 152, "03-Apr") => "1"
+      case (28 | 152, "06-Jun") => "2"
+      case (28 | 152, "07-Sep") => "3"
+
+      case (29, "Never") => "0"
+      case (29, "Less than monthly") => "1"
+      case (29, "Monthly") => "2"
+      case (29, "Weekly") => "3"
+      case (29, "Daily or almost daily") => "4"
+
+      case (x, "I very much disagree") if 131 to 144 contains x => "1"
+      case (x, "I slightly disagree")  if 131 to 144 contains x => "2"
+      case (x, "Not sure")             if 131 to 144 contains x => "3"
+      case (x, "I slightly agree")     if 131 to 144 contains x => "4"
+      case (x, "I very much agree")    if 131 to 144 contains x => "5"
+
+      case _ => answerText
+    })
+
+    val df2 = addQIDStringColumn(df)
+
+    val df3 = df2.withColumn("ValidatedScore", calculateScore(df2("QuestionId"), df2("AnswerText")))
+
+    df3.printSchema()
+    val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/validatedscore_test.csv"
+    writeDFtoCsv(df3,output)
+    df3.select("participantUUID","assessmentNumber","QuestionId","Question","AnswerText","AnswerValue","ValidatedScore").show(50)
   }
 
   /**
