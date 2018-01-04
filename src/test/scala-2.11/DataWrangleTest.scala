@@ -6,7 +6,7 @@ import org.scalatest.FunSuite
 
 /**
   * @author lucieburgess on 08/12/2017
-  *  Test of the data pre-processing function which cleans and pivots the raw data file so it's in a suitable format
+  *  Tests of the data pre-processing functions which clean and pivot the raw data file so it's in a suitable format
   *  to work with for analytics.
   */
 class DataWrangleTest extends FunSuite {
@@ -27,9 +27,22 @@ class DataWrangleTest extends FunSuite {
     case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
   }
 
-  /** Add a column Q_id_string which concatenates the Q_id and the Question */
+  /**
+    * Add a column Q_id_string which concatenates the Q_id and the Question
+    * So e.g. we have a column which contains entries such as 10_Please tell us what time you get up in the morning:
+    * These entries will become column headings in the new data file used for analytics
+    */
   val df2 = df.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
     .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
+
+  /**
+    * Helper method to add a Q_id_string column, tested in test [04] below
+    */
+  def addQIDStringColumn(inputDF: DataFrame): DataFrame = {
+    val resultDF = inputDF.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
+      .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
+    resultDF
+  }
 
   /** Writes dataframe to a single csv file using the given path */
   def writeDFtoCsv(df: DataFrame, outputPath: String): Unit = {
@@ -43,6 +56,7 @@ class DataWrangleTest extends FunSuite {
 
   /** -------------------------------- Tests from here ------------------------------------ */
 
+  /** Tested by inspection of the output file */
   test("[01] Calling writeDFtoCSv writes the result to a csv file") {
     writeDFtoCsv(df2, outputpath)
   }
@@ -60,32 +74,81 @@ class DataWrangleTest extends FunSuite {
     }
   }
 
+  /**
+    * Add a column Q_id_string which concatenates the Q_id and the Question
+    * So e.g. we have a column which contains entries such as 10_Please tell us what time you get up in the morning:
+    * These entries will become column headings in the new data file used for analytics
+    */
   test("[04] Adding a Q_id_string column concatenates the QuestionId and the Question columns") {
 
+    val df2 = df.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
+      .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
+
     df2.printSchema()
+    df2.show()
+
     assertResult(10) {
       df2.columns.length
     }
 
-    /** 110 distinct Q_ids including Games questions */
+    /** 110 distinct Q_id_strings including Games questions */
     assertResult(110){
       df2.select($"Q_id_string").distinct.collect.length
     }
+
+    df2.createOrReplaceTempView("datatable")
+
+    val result = spark
+      .sql("""SELECT Q_id_string
+            FROM datatable
+            WHERE participantUUID='02E30B95-B9E6-49B4-BFB6-1719D48F14B3_1465478322'
+            AND assessmentNumber=0
+            AND QuestionId = 53""")
+
+    assertResult("53_I've been interested in new things.") {
+      result.collect.head.getString(0)
+    }
+
+    val result2 = spark
+      .sql("""SELECT Q_id_string
+            FROM datatable
+            WHERE participantUUID='02E30B95-B9E6-49B4-BFB6-1719D48F14B3_1465478322'
+            AND assessmentNumber=1
+            AND QuestionId = 102""")
+
+    assertResult("102_What are you doing right now?") {
+      result2.collect.head.getString(0)
+    }
   }
 
+  /**
+    * Filter out QuestionId relating to games as they are not used for analytics
+    */
   test("[05] Filter out Q_ids relating to games") {
 
-    val df3 = df2.filter($"QuestionId" <2000)
+    val df3 = df.filter($"QuestionId" <2000)
     assertResult(480-60) {
       df3.count()
     }
 
     assertResult(105) {
-      df3.select($"Q_id_string").distinct.collect.length
+      df3.select($"QuestionId").distinct.collect.length
     }
   }
 
-  test ("[06] Add a new column of StringType which combines the string and numeric answers, and check with SQL queries") {
+  /**
+    * ValidatedResponse is a new column of type String which combines AnswerText and AnswerValue.
+    * AnswerText is a column which gives the raw text response provided by the participant.
+    * AnswerValue converts some of the text answers to a numeric score for suitable questions, e.g. the Edinburgh-Warwick mental health
+    * questions (41-54). However this seems inconsistent, e.g. 1_Age is an integer response and includes a string in the AnswerText field,
+    * but 'None' in AnswerValue. Furthermore the ImpulsivityScore is calculated incorrectly.
+    * So this test works but does not produce reliable results as ValidatedResponse doesn't contain correct answers.
+    * The only solution is to calculate correct answers from the AnswerText column, as AnswerValue is not reliable.
+    */
+  test ("[06] Add a new column ValidatedResponse of StringType which combines the string and numeric answers, and check with SQL queries") {
+
+    val df2 = addQIDStringColumn(df)
+
     val df3 = df2.withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
 
     df3.show()
@@ -149,7 +212,12 @@ class DataWrangleTest extends FunSuite {
     }
   }
 
+  /**
+    * First attempt to create a pivoted dataframe - not used, but does create the desired result
+    */
   test("[07] Create an array string from the Q_id_string column and use it to pivot dataframe") {
+
+    val df2 = addQIDStringColumn(df)
 
     val questions: Array[String] = df2.select("Q_id_string")
       .distinct()
@@ -167,20 +235,40 @@ class DataWrangleTest extends FunSuite {
     assert(questions(1).equals("102_What are you doing right now?"))
     assert(questions(questions.length - 1).equals("8_How would you rate your mental health overall?"))
 
-    val df3: DataFrame = questions.foldLeft(df2) {
+    val df3: DataFrame = questions.foldLeft(df2) { //produces a DataFrame with each response in a column to the right, column header = question
       case (data, question) =>
         data.withColumn(question, when($"Q_id_string" === question, $"AnswerText"))
     }
 
     df3.printSchema()
+    df3.show()
+
+    val df4: DataFrame = df3
+      .drop("QuestionId")
+      .drop("Question")
+      .drop("TimeAnswered")
+      .groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
+      .pivot("Q_id_string",questions) // .sum(questions: _*) doesn't work as questions is not numeric. Aggregate function must be numeric
+      .agg(first($"AnswerText"))
+      .orderBy("participantUUID", "assessmentNumber")
+
+    df4.show()
+    val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/questionsarray_test.csv"
+    writeDFtoCsv(df4, output)
+    df4.printSchema()
   }
 
+  /**
+    * Pivot the dataframe without creating the questions array
+    */
   test("[08] Pivot dataframe using Q_id_string and re-order it in order of Question") {
+
+    val df2 = addQIDStringColumn(df)
 
     val df3 = df2.withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
 
     val df4 = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
-      .pivot("Q_id_string") // and pivot by question?
+      .pivot("Q_id_string") // no need to also pivot using questions array
       .agg(first("ValidatedResponse")) //solves the aggregate function must be numeric problem
       .orderBy("participantUUID", "assessmentNumber")
 
@@ -196,18 +284,38 @@ class DataWrangleTest extends FunSuite {
 
   }
 
+  /**
+    * Add leading zeros to the QuestionId, which enables column headers of Q_id_string to be sorted in ascending order
+    */
   test("[09] Add leading zeros to the QuestionId") {
 
-    val addLeadingZeros: (Int => String) = (s => "%03d".format(s))
+    val addLeadingZeros: (Int => String) = s => "%03d".format(s)
 
     val newCol = udf(addLeadingZeros).apply(col("QuestionId")) // creates the new column
-    val df3 = df2.withColumn("Q_id_new", newCol) // adds the new column to original
+    val df3 = df.withColumn("Q_id_new", newCol) // adds the new column to original
 
     df3.printSchema()
     df3.show
   }
 
+  /**
+    * This is a simpler version so use this method instead.
+    * https://stackoverflow.com/questions/8131291/how-to-convert-an-int-to-a-string-of-a-given-length-with-leading-zeros-to-align
+    */
+  test("[09B] Add leading zeros to the QuestionId using different udf method") {
+
+    val addLeadingZeros = udf((number: Int) => {f"$number%03d"})
+
+    val df3 = df.withColumn("Q_id_new", addLeadingZeros(df("QuestionId"))) // adds the new column to original
+
+    df3.printSchema()
+    df3.show
+  }
+
+  /** Select certain columns in the DataFrame in the order we want by placing them in an array */
   test("[10] Create a new DataFrame with the columns we want and cache it") {
+
+    val df2 = addQIDStringColumn(df)
     val columnNames = df2.columns
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","Q_id_string","AnswerText","AnswerValue","geotagStart","geoTagEnd")
     val result: DataFrame = df2.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
@@ -218,6 +326,7 @@ class DataWrangleTest extends FunSuite {
   /** Delete "'", "," ":" and "?" from SQL column names */
   test("[11] Deal with unusual characters in SQL strings") {
 
+    val df2 = addQIDStringColumn(df)
     val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
     df3.printSchema()
 
@@ -228,11 +337,13 @@ class DataWrangleTest extends FunSuite {
     }
   }
 
-  /** Calculate the AnswerValue for the impulsivity score questions, which seems to be wrong */
-  // First match question number. If 31-35 it's an impulsivity question. If 36-39 it's a second set of impulsivity questions
-  // and then match the answer text to a value. If it's an impulsivity question, calculate the correct score and put it in a new
-  // column, "ImpulseAnswerValue". Otherwise
-  test("[13] Calculate impulsivity score for the impulsivity score questions ") {
+  /**
+    * Calculate the AnswerValue for the impulsivity score questions, which seems to be wrong
+    * First match question number. If 31-35 it's an impulsivity question. If 36-39 it's a second set of impulsivity questions
+    * and then map the answer text to a value. If it's an impulsivity question (31-39), calculate the correct score and put it in a new
+    * column, "ImpulseAnswerValue". Otherwise, map it to a score of zero (or null).
+    */
+  test("[12] Calculate impulsivity score for the impulsivity score questions") {
 
     def calculateScore = udf((questionId: Int, answerText: String) => (questionId, answerText) match {
 
@@ -247,16 +358,12 @@ class DataWrangleTest extends FunSuite {
       case _ => 0
     })
 
-    val df3 = df2.withColumn("ImpulseAnswerValue", calculateScore(df2("QuestionId"), df2("AnswerText")))
+    val df3 = df.withColumn("ImpulseAnswerValue", calculateScore(df("QuestionId"), df("AnswerText")))
 
     df3.printSchema()
-
     val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/impulsivity_test.csv"
-
     writeDFtoCsv(df3,output)
-
     df3.select("QuestionId","AnswerText","AnswerValue","ImpulseAnswerValue").show(50)
-
   }
 
   /**
@@ -271,13 +378,12 @@ class DataWrangleTest extends FunSuite {
     * Re-order it in order of: ParticipantUUID, assessmentNumber, Q_id_string, GeoTagStart, GeoTagEnd, Questions in ascending order
     * Finally re-set the schema of each column so that it corresponds to the correct type e.g. 1-2 times should be a string, 8am should be
     */
-  test("[12] Putting it all together") {
+  test("[14] Putting it all together") {
 
-    val addLeadingZeros: (Int => String) = s => "%03d".format(s)
-    val newCol = udf(addLeadingZeros).apply(col("QuestionId")) // creates the new column
+    val addLeadingZeros = udf((number: Int) => {f"$number%03d"})
 
     val df2 = df.filter($"QuestionId" <2000)
-      .withColumn("Q_id_new", newCol)
+      .withColumn("Q_id_new", addLeadingZeros(df("QuestionId")))
       .withColumn("Q_id_string", concat($"Q_id_new", lit("_"), $"Question"))
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
       .withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
@@ -307,24 +413,6 @@ class DataWrangleTest extends FunSuite {
     assert(df5.columns.length === reorderedColumnNames.length)
 
   }
-
-
-    //    // wrap it up - intrigued to see if we can make this work ...
-    //    val result = withQIDColumns
-    //      .drop("Q_id_string")
-    //        .drop("QuestionId")
-    //        .drop("Question")
-    //        .drop("AnswerText")
-    //        .drop("TimeAnswered")
-    //      .groupBy("participantUUID","assessmentNumber","geotagStart","geotagEnd")
-    //      .sum(questions: _*)
-    //
-    //    result.show()
-
-    //val df4 = df3.withColumn("Q_id_string_new_2", regexp_replace(df3("Q_id_string_new"), "\\ ","_"))
-
-    //df3.printSchema()
-
 }
 
 
