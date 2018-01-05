@@ -1,7 +1,6 @@
 import dev.data_load.Csvload
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.IntegerType
 import org.scalatest.FunSuite
 
 /**
@@ -579,6 +578,10 @@ class DataWrangleTest extends FunSuite {
     val output2: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/cleaneddata_full.csv"
     writeDFtoCsv(df5,output2)
 
+  }
+
+  test ("[15] filtering participants who completed less than 50% of assessments") {
+    ??? //Not yet implemented
   }
 }
 

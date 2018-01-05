@@ -14,7 +14,7 @@ object DataWrangle {
   val input: String = defaultParams.input
   val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfull2.csv"
 
-  def runDataWrangle(): Unit = {
+  def runDataWrangle(): DataFrame = {
 
     val spark: SparkSession = SparkSession
       .builder()
@@ -203,6 +203,7 @@ object DataWrangle {
     writeDFtoCsv(df6, output)
     df6.printSchema()
 
+    df6
   }
 
   /*********** Helper functions *******************/
