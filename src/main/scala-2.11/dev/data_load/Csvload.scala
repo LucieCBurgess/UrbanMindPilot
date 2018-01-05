@@ -16,8 +16,6 @@ object Csvload {
 
   def createDataFrame(inputpath: String): Option[DataFrame] = {
 
-    import spark.implicits._
-
     val df: Option[DataFrame] = Try(spark.read.format("csv")
       .option("header", "true")
       .option("inferSchema", "true")

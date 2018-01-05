@@ -57,10 +57,6 @@ object Main {
         .text(s"input is the input path, default: ${defaultParams.input}")
         .action {(x, c) => c.copy(input = x)}
 
-//      opt[String]('o', "output")
-//        .text("output is the output path")
-//        .required() action {(x, c) => c.copy(output = x)}
-
       checkConfig { params =>
         if (params.fracTest < 0.1 || params.fracTest >= 1) {
           failure(s"fracTest ${params.fracTest} value is incorrect; it should be in range [0.1,1).")
@@ -69,7 +65,7 @@ object Main {
     }
 
     parser.parse(args, defaultParams) match {
-      case Some(params) => DataWrangle.run(params)
+      case Some(params) => RegressionOps.run(params)
       case _ => sys.exit(1)
     }
   }
