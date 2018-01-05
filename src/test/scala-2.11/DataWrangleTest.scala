@@ -19,7 +19,7 @@ class DataWrangleTest extends FunSuite {
 
   import spark.implicits._
 
-  val inputpath = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw_test.csv"
+  val inputpath = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw.csv"
 
   /** Load dataframe from csv file */
   val df = Csvload.createDataFrame(inputpath) match {
@@ -27,16 +27,8 @@ class DataWrangleTest extends FunSuite {
     case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
   }
 
-//  /**
-//    * Add a column Q_id_string which concatenates the Q_id and the Question
-//    * So e.g. we have a column which contains entries such as 10_Please tell us what time you get up in the morning:
-//    * These entries will become column headings in the new data file used for analytics
-//    */
-//  val df2 = df.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
-//    .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("QuestionId"))
-
   /**
-    * Helper method to add a Q_id_string column, tested in test [04] below
+    * Helper method to add a Q_id_string column and order the file, tested in test [04] below
     */
   def addQIDStringColumn(inputDF: DataFrame): DataFrame = {
     val resultDF = inputDF.withColumn("Q_id_string", concat($"QuestionId", lit("_"), $"Question"))
@@ -52,13 +44,14 @@ class DataWrangleTest extends FunSuite {
       .save(outputPath)
   }
 
-  val outputpath: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered_test.csv"
-
   /** -------------------------------- Tests from here ------------------------------------ */
 
   /** Tested by inspection of the output file */
   test("[01] Calling writeDFtoCSv writes the result to a csv file") {
+
     val df2 = addQIDStringColumn(df)
+
+    val outputpath: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/raw_ordered_test.csv"
     writeDFtoCsv(df2, outputpath)
   }
 
@@ -319,27 +312,29 @@ class DataWrangleTest extends FunSuite {
     val df2 = addQIDStringColumn(df)
     val columnNames = df2.columns
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","Q_id_string","AnswerText","AnswerValue","geotagStart","geoTagEnd")
-    val result: DataFrame = df2.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
+    val result: DataFrame = df2.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*).cache()
 
     result.printSchema()
   }
 
   /** Delete "'", "," ":" and "?" from SQL column names */
-  test("[11] Deal with unusual characters in SQL strings") {
+  test("[11] Deal with unusual characters in SQL header strings") {
 
     val df2 = addQIDStringColumn(df)
     val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
     df3.printSchema()
 
     val result: String = df3.select($"Q_id_string_cleaned").as[String].collect().mkString("")
+
     def containsNoSpecialChars(string: String) = string.matches("^[a-zA-Z0-9][^'?,:.]*$")
+
     assertResult(true){
       containsNoSpecialChars(result)
     }
   }
 
   /**
-    * Calculate the AnswerValue for the impulsivity score questions, which seems to be wrong
+    * Calculate the AnswerValue for the impulsivity score questions, which seems to be incorrect in the data dump.
     * First match question number. If 31-35 it's an impulsivity question. If 36-39 it's a second set of impulsivity questions
     * and then map the answer text to a value. If it's an impulsivity question (31-39), calculate the correct score and put it in a new
     * column, "ImpulseAnswerValue". Otherwise, map it to a score of zero (or null).
@@ -362,15 +357,17 @@ class DataWrangleTest extends FunSuite {
     val df3 = df.withColumn("ImpulseAnswerValue", calculateScore(df("QuestionId"), df("AnswerText")))
 
     df3.printSchema()
+
     val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/impulsivity_test.csv"
     writeDFtoCsv(df3,output)
+
     df3.select("QuestionId","AnswerText","AnswerValue","ImpulseAnswerValue").show(50)
   }
 
   /**
     * Now do the same for the other questions which should be mapped to scores
     * Mapping these to strings as we can convert them to the correct type later
-    * and otherwise can't map to the answerText as the return type must be consistent
+    * and otherwise can't map to the answerText as the return type within the match statement must be consistent
     */
   test("[13] Calculate scores for questions with numeric answers") {
 
@@ -409,10 +406,10 @@ class DataWrangleTest extends FunSuite {
       case (28 | 152, "5-6") => "2"
       case (28 | 152, "7-9") => "3"
       case (28 | 152, "10+") => "4"
-      case (28 | 152, "01-Feb") => "0"
-      case (28 | 152, "03-Apr") => "1"
-      case (28 | 152, "06-Jun") => "2"
-      case (28 | 152, "07-Sep") => "3"
+      case (28 | 152, "01-Feb") => "0" // deals with problem where 1-2 parses as a date in the input csv file
+      case (28 | 152, "03-Apr") => "1" //3-4
+      case (28 | 152, "06-Jun") => "2" //5-6
+      case (28 | 152, "07-Sep") => "3" //7-9
 
       case (29, "Never") => "0"
       case (29, "Less than monthly") => "1"
@@ -426,6 +423,18 @@ class DataWrangleTest extends FunSuite {
       case (x, "I slightly agree")     if 131 to 144 contains x => "4"
       case (x, "I very much agree")    if 131 to 144 contains x => "5"
 
+      case (x, "I very much disagree") if 154 to 158 contains x => "5" //Trait impulsivity - momentary
+      case (x, "I slightly disagree")  if 154 to 158 contains x => "4"
+      case (x, "Not sure")             if 154 to 158 contains x => "3"
+      case (x, "I slightly agree")     if 154 to 158 contains x => "2"
+      case (x, "I very much agree")    if 154 to 158 contains x => "1"
+
+      case (x, "I very much disagree") if 159 to 162 contains x => "1" //Trait impulsivity - momentary
+      case (x, "I slightly disagree")  if 159 to 162 contains x => "2"
+      case (x, "Not sure")             if 159 to 162 contains x => "3"
+      case (x, "I slightly agree")     if 159 to 162 contains x => "4"
+      case (x, "I very much agree")    if 159 to 162 contains x => "5"
+
       case _ => answerText
     })
 
@@ -434,8 +443,10 @@ class DataWrangleTest extends FunSuite {
     val df3 = df2.withColumn("ValidatedScore", calculateScore(df2("QuestionId"), df2("AnswerText")))
 
     df3.printSchema()
+
     val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/validatedscore_test.csv"
     writeDFtoCsv(df3,output)
+
     df3.select("participantUUID","assessmentNumber","QuestionId","Question","AnswerText","AnswerValue","ValidatedScore").show(50)
   }
 
@@ -455,26 +466,95 @@ class DataWrangleTest extends FunSuite {
 
     val addLeadingZeros = udf((number: Int) => {f"$number%03d"})
 
+    /** Calculate validated score */
+    def calculateScore = udf((questionId: Int, answerText: String) => (questionId, answerText) match {
+
+      case (x, "Never")     if 13 to 22 contains x => "1" //urban environment questions
+      case (x, "Rarely")    if 13 to 22 contains x => "2"
+      case (x, "Sometimes") if 13 to 22 contains x => "3"
+      case (x, "Often")     if 13 to 22 contains x => "4"
+      case (x, "Always")    if 13 to 22 contains x => "5"
+
+      case (x, "Rarely /<br>Never") if 31 to 35 contains x => "4" //Trait impulsivity - baseline
+      case (x, "Occasionally")      if 31 to 35 contains x => "3"
+      case (x, "Often")             if 31 to 35 contains x => "2"
+      case (x, "Almost always /<br>Always") if 31 to 35 contains x => "1"
+
+      case (x, "Rarely /<br>Never") if 36 to 39 contains x => "1" //Trait impulsivity - baseline
+      case (x, "Occasionally")      if 36 to 39 contains x => "2"
+      case (x, "Often")             if 36 to 39 contains x => "3"
+      case (x, "Almost always /<br>Always") if 36 to 39 contains x => "4"
+
+      case (x, "None of<br>the time") if 41 to 54 contains x => "1" //EW wellbeing questions - baseline
+      case (x, "Rarely")              if 41 to 54 contains x => "2"
+      case (x, "Some of<br>the time") if 41 to 54 contains x => "3"
+      case (x, "Often")               if 41 to 54 contains x => "4"
+      case (x, "All of<br>the time")  if 41 to 54 contains x => "5"
+
+      case (27, "Never") => "0" //alcohol consumption
+      case (27, "Monthly or less") => "1"
+      case (27, "2-4 times per month") => "2"
+      case (27, "2-3 times per week") => "3"
+      case (27, "4+ times per week") => "4"
+
+      case (28 | 152, "1-2") => "0" //alcohol consumption
+      case (28 | 152, "3-4") => "1"
+      case (28 | 152, "5-6") => "2"
+      case (28 | 152, "7-9") => "3"
+      case (28 | 152, "10+") => "4"
+      case (28 | 152, "01-Feb") => "0" // deals with problem where 1-2 parses as a date in the input csv file
+      case (28 | 152, "03-Apr") => "1" //3-4
+      case (28 | 152, "06-Jun") => "2" //5-6
+      case (28 | 152, "07-Sep") => "3" //7-9
+
+      case (29, "Never") => "0" //alcohol consumption
+      case (29, "Less than monthly") => "1"
+      case (29, "Monthly") => "2"
+      case (29, "Weekly") => "3"
+      case (29, "Daily or almost daily") => "4"
+
+      case (x, "I very much disagree") if 131 to 144 contains x => "1" //EW wellbeing questions - momentary
+      case (x, "I slightly disagree")  if 131 to 144 contains x => "2"
+      case (x, "Not sure")             if 131 to 144 contains x => "3"
+      case (x, "I slightly agree")     if 131 to 144 contains x => "4"
+      case (x, "I very much agree")    if 131 to 144 contains x => "5"
+
+      case (x, "I very much disagree") if 154 to 158 contains x => "5" //Trait impulsivity - momentary
+      case (x, "I slightly disagree")  if 154 to 158 contains x => "4"
+      case (x, "Not sure")             if 154 to 158 contains x => "3"
+      case (x, "I slightly agree")     if 154 to 158 contains x => "2"
+      case (x, "I very much agree")    if 154 to 158 contains x => "1"
+
+      case (x, "I very much disagree") if 159 to 162 contains x => "1" //Trait impulsivity - momentary
+      case (x, "I slightly disagree")  if 159 to 162 contains x => "2"
+      case (x, "Not sure")             if 159 to 162 contains x => "3"
+      case (x, "I slightly agree")     if 159 to 162 contains x => "4"
+      case (x, "I very much agree")    if 159 to 162 contains x => "5"
+
+      case _ => answerText
+    })
+
     val df2 = df.filter($"QuestionId" <2000)
       .withColumn("Q_id_new", addLeadingZeros(df("QuestionId")))
       .withColumn("Q_id_string", concat($"Q_id_new", lit("_"), $"Question"))
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
-      .withColumn("ValidatedResponse", when($"AnswerValue".startsWith("None"), $"AnswerText").otherwise($"AnswerValue"))
+      .withColumn("ValidatedScore", calculateScore(df("QuestionId"), df("AnswerText")))
 
     val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
 
     val columnNames: Array[String] = df3.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
 
-    assert(columnNames.length === 105)
+    assert(columnNames.length === 112) //105 in the test file, 112 in the full file. Full file has an extra question, "135_I feel energy to spare"
+    // which is a partial duplicate of 135_I have energy to spare
 
     val df4 = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
-      .pivot("Q_id_string_cleaned") // and pivot by question?
-      .agg(first("ValidatedResponse")) //solves the aggregate function must be numeric problem
+      .pivot("Q_id_string_cleaned")
+      .agg(first("ValidatedScore"))
       .orderBy("participantUUID", "assessmentNumber")
 
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","geotagStart","geoTagEnd") ++ columnNames
 
-    assert(reorderedColumnNames.length === 109)
+    assert(reorderedColumnNames.length === 116) //109 in the test file (105 + 4), 116 in the full file.
 
     println("************** "+reorderedColumnNames.mkString(",")+" ***********")
 
@@ -484,6 +564,20 @@ class DataWrangleTest extends FunSuite {
 
     assert(df5.count === numberOfRows)
     assert(df5.columns.length === reorderedColumnNames.length)
+
+    df5.createOrReplaceTempView("datatable")
+
+    val result = spark
+      .sql("""SELECT participantUUID, assessmentNumber
+            FROM datatable
+            WHERE '135_Right now I feel energy to spare' IS NOT NULL""")
+
+    val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/Q135_result.csv"
+
+    writeDFtoCsv(result, output)
+
+    //val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/cleaneddata_full.csv"
+    // writeDFtoCsv(df5,output)
 
   }
 }

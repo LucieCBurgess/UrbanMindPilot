@@ -12,7 +12,7 @@ object DataWrangle {
 
   val defaultParams = RegressionParams()
   val input: String = defaultParams.input
-  val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/output_test.csv"
+  val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/cleaneddata_test2.csv"
 
   def run(params: RegressionParams): Unit = {
 
