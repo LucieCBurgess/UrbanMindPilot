@@ -54,6 +54,8 @@ object RegressionOps {
     // Two problems: Strings must be converted to numeric types - Vector Assembler cannot deal with strings (obviously)
     // Vector Assembler can't deal with nulls -
     // see https://stackoverflow.com/questions/41362295/sparkexception-values-to-assemble-cannot-be-null
+    // I've commented out the String columns, let's see if we can get a regression model working on the numeric questions
+    // to start with
     val featureCols = Array(
 //      "001_Age",
 //      "002_Gender",

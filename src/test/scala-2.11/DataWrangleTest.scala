@@ -539,32 +539,41 @@ class DataWrangleTest extends FunSuite {
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
       .withColumn("ValidatedScore", calculateScore(df("QuestionId"), df("AnswerText")))
 
-    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
+    val df3: DataFrame = df2.select($"participantUUID".alias("filteredParticipantUUID"),$"assessmentNumber")
+      .groupBy("filteredParticipantUUID")
+      .agg(countDistinct("assessmentNumber") as("totalAssessments"))
+      .filter($"totalAssessments" > 25)
+    df3.show()
 
-    val columnNames: Array[String] = df3.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
+    val df4 = df3.join(df2, df3("filteredParticipantUUID") === df2("participantUUID"))
 
-    assert(columnNames.length === 112) //105 in the test file, 112 in the full file. Full file has an extra question, "135_I feel energy to spare"
-    // which is a partial duplicate of 135_I have energy to spare
+    val df5 = df4.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
 
-    val df4 = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
+    val columnNames: Array[String] = df5.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
+
+    assert(columnNames.length === 111) //105 in the test file, 112 in the full file, 111 in the filtered file.
+    // Full file has an extra question, "135_I feel energy to spare"
+    // which is a partial duplicate of 135_I have energy to spare, but this gets filtered out by the join
+
+    val df6 = df5.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
       .pivot("Q_id_string_cleaned")
       .agg(first("ValidatedScore"))
       .orderBy("participantUUID", "assessmentNumber")
 
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","geotagStart","geoTagEnd") ++ columnNames
 
-    assert(reorderedColumnNames.length === 116) //109 in the test file (105 + 4), 116 in the full file.
+    assert(reorderedColumnNames.length === 115) //109 in the test file (105 + 4), 116 in the full file, 115 in the filtered file
 
     println("************** "+reorderedColumnNames.mkString(",")+" ***********")
 
-    val df5: DataFrame = df4.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
+    val df7: DataFrame = df6.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
 
-    val numberOfRows: Int = df2.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd").count().distinct().collect().length
+    val numberOfRows: Int = df4.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd").count().distinct().collect().length
 
-    assert(df5.count === numberOfRows)
-    assert(df5.columns.length === reorderedColumnNames.length)
+    assert(df7.count === numberOfRows)
+    assert(df7.columns.length === reorderedColumnNames.length)
 
-    df5.createOrReplaceTempView("datatable")
+    df7.createOrReplaceTempView("datatable")
 
     val result = spark
       .sql("""SELECT participantUUID, assessmentNumber
@@ -576,12 +585,29 @@ class DataWrangleTest extends FunSuite {
     writeDFtoCsv(result, output)
 
     val output2: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/cleaneddata_full.csv"
-    writeDFtoCsv(df5,output2)
+    writeDFtoCsv(df7,output2)
 
   }
 
+  /** Filter out participants who completed less than 25 assessments */
   test ("[15] filtering participants who completed less than 50% of assessments") {
-    ??? //Not yet implemented
+
+    val addLeadingZeros = udf((number: Int) => {f"$number%03d"})
+
+    val df2 = df.filter($"QuestionId" < 2000)
+      .withColumn("Q_id_new", addLeadingZeros(df("QuestionId")))
+      .withColumn("Q_id_string", concat($"Q_id_new", lit("_"), $"Question"))
+      .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
+
+    val df3: DataFrame = df2.select($"participantUUID".alias("filteredParticipantUUID"),$"assessmentNumber")
+      .groupBy("filteredParticipantUUID")
+      .agg(countDistinct("assessmentNumber") as("totalAssessments"))
+      .filter($"totalAssessments" > 25)
+    df3.show()
+
+    val df4 = df3.join(df2, df3("filteredParticipantUUID") === df2("participantUUID"))
+    df4.show()
+
   }
 }
 
