@@ -350,7 +350,7 @@ class DataWrangleTest extends FunSuite {
       case ((36 | 37 | 38 | 39), "Occasionally") => 2
       case ((36 | 37 | 38 | 39), "Often") => 3
       case ((36 | 37 | 38 | 39), "Almost always /<br>Always") => 4
-      case _ => 0
+      case _ => -1
     })
 
     val df3 = df.withColumn("ImpulseAnswerValue", calculateScore(df("QuestionId"), df("AnswerText")))
@@ -547,7 +547,7 @@ class DataWrangleTest extends FunSuite {
 
     val df4 = df3.join(df2, df3("filteredParticipantUUID") === df2("participantUUID"))
 
-    val df5 = df4.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
+    val df5 = df4.withColumn("Q_id_string_cleaned", regexp_replace(df4.col("Q_id_string"),"[\\',\\?,\\,,\\:,\\.]",""))
 
     val columnNames: Array[String] = df5.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_<_)
 
@@ -562,7 +562,7 @@ class DataWrangleTest extends FunSuite {
 
     val reorderedColumnNames: Array[String] = Array("participantUUID","assessmentNumber","geotagStart","geoTagEnd") ++ columnNames
 
-    assert(reorderedColumnNames.length === 115) //109 in the test file (105 + 4), 116 in the full file, 115 in the filtered file
+    assert(reorderedColumnNames.length === 115) //109 in the test file (105 + 4), 116 in the full file, 115 in the filtered file because the extra rogue column is filtered out
 
     println("************** "+reorderedColumnNames.mkString(",")+" ***********")
 

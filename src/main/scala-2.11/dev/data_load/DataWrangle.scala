@@ -12,7 +12,7 @@ object DataWrangle {
 
   val defaultParams = RegressionParams()
   val input: String = defaultParams.input
-  val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfull2.csv"
+  val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfullfiltered.csv"
 
   def runDataWrangle(): DataFrame = {
 
@@ -112,11 +112,20 @@ object DataWrangle {
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
       .withColumn("ValidatedScore", calculateScore(df("QuestionId"), df("AnswerText")))
 
-    val df3 = df2.withColumn("Q_id_string_cleaned", regexp_replace(df2.col("Q_id_string"), "[\\',\\?,\\,,\\:,\\.]", ""))
+    val df3: DataFrame = df2.select($"participantUUID".alias("filteredParticipantUUID"),$"assessmentNumber")
+      .groupBy("filteredParticipantUUID")
+      .agg(countDistinct("assessmentNumber") as("totalAssessments"))
+      .filter($"totalAssessments" > 25)
 
-    val columnNames: Array[String] = df3.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_ < _)
+    df3.show()
 
-    val df4 = df3.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
+    val df4 = df3.join(df2, df3("filteredParticipantUUID") === df2("participantUUID"))
+
+    val df5 = df4.withColumn("Q_id_string_cleaned", regexp_replace(df4.col("Q_id_string"), "[\\',\\?,\\,,\\:,\\.]", ""))
+
+    val columnNames: Array[String] = df5.select($"Q_id_string_cleaned").distinct.as[String].collect.sortWith(_ < _)
+
+    val df6 = df5.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
       .pivot("Q_id_string_cleaned")
       .agg(first("ValidatedScore"))
       .orderBy("participantUUID", "assessmentNumber")
@@ -125,10 +134,10 @@ object DataWrangle {
 
     println("************** " + reorderedColumnNames.mkString(",") + " ***********")
 
-    val df5: DataFrame = df4.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
+    val df7: DataFrame = df6.select(reorderedColumnNames.head, reorderedColumnNames.tail: _*)
 
-    println(s"Cleaned pivoted dataset contains ${df5.count()} rows")
-    println(s"Cleaned pivoted dataset contains ${df5.columns.length} columns")
+    println(s"Cleaned pivoted dataset contains ${df7.count()} rows")
+    println(s"Cleaned pivoted dataset contains ${df7.columns.length} columns")
 
     /**
       * Now calculate the Edinburgh-Warwick wellbeing score at baseline
@@ -155,7 +164,7 @@ object DataWrangle {
       col("132_Right now I feel useful"),
       col("133_Right now I feel relaxed"),
       col("134_Right now I feel interested in other people"),
-      col("135_Right now I feel energy to spare"),
+      //col("135_Right now I feel energy to spare"),
       col("135_Right now I have energy to spare"),
       col("136_Right now I deal with problems well"),
       col("137_Right now I think clearly"),
@@ -193,17 +202,17 @@ object DataWrangle {
       col("161_Today I jumped from one interest to another"),
       col("162_Today I acted on impulse"))
 
-    val df6 = df5.withColumn("baseWellbeingScore", baseWellBeingCols.reduce(_ + _))
-      .withColumn("momWellbeingScore", momWellBeingCols.reduce(_ + _))
+    val df8 = df7.withColumn("baseWellBeingScore", baseWellBeingCols.reduce(_ + _))
+      .withColumn("momWellBeingScore", momWellBeingCols.reduce(_ + _))
       .withColumn("baseImpulseScore", baseImpulseCols.reduce(_ + _))
       .withColumn("momImpulseScore", momImpulseCols.reduce(_ + _))
 
-    df6.select($"participantUUID", $"assessmentNumber", $"baseWellBeingScore", $"momWellBeingScore", $"baseImpulseScore", $"momImpulseScore").show()
+    df8.select($"participantUUID", $"assessmentNumber", $"baseWellBeingScore", $"momWellBeingScore", $"baseImpulseScore", $"momImpulseScore").show()
 
-    writeDFtoCsv(df6, output)
-    df6.printSchema()
+    writeDFtoCsv(df8, output)
+    df8.printSchema()
 
-    df6
+    df8
   }
 
   /*********** Helper functions *******************/

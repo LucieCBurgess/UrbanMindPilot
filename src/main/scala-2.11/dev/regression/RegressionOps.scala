@@ -14,7 +14,7 @@ import scala.collection.mutable
 object RegressionOps {
 
   val defaultParams = RegressionParams()
-  val input: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfull.csv"
+  //val input: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfull.csv"
   val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/regression.csv"
 
   def run(params: RegressionParams): Unit = {
@@ -30,21 +30,25 @@ object RegressionOps {
 
     /**
       * Load cleaned data file - avoids having to run the cleaning operation every time
-      * Alternatively call: val df7: DataFrame = DataWrangle.runDataWrangle()
+      * Alternatively call: val df: DataFrame = DataWrangle.runDataWrangle()
       */
-    val df7 = Csvload.createDataFrame(input) match {
-      case Some(dfload) => dfload
-      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
-    }
+//    val df = Csvload.createDataFrame(input) match {
+//      case Some(dfload) => dfload
+//      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
+//    }
+
+    val df = DataWrangle.runDataWrangle()
+
+    sys.exit() // Included for testing. Remove this when we want to get on to the regression
 
     /** Filter out all assessments not at baseline */
-    val df8: DataFrame = df7.filter($"baseWellBeingScore" > 0)
+    val df2: DataFrame = df.filter($"baseWellBeingScore" > 0)
 
-    df8.select($"participantUUID",$"assessmentNumber",$"geotagStart",$"geoTagEnd",$"baseWellBeingScore").show(100)
+    df2.select($"participantUUID",$"assessmentNumber",$"geotagStart",$"geoTagEnd",$"baseWellBeingScore").show(100)
 
-    df8.printSchema()
+    df2.printSchema()
 
-    val nSamples: Int = df8.count().toInt
+    val nSamples: Int = df2.count().toInt
     println(s"The number of training samples is $nSamples")
 
     /** Set up the logistic regression pipeline */
@@ -100,7 +104,7 @@ object RegressionOps {
 
     /** Fit the pipeline, which includes training the model */
     val startTime = System.nanoTime()
-    val pipelineModel: PipelineModel = pipeline.fit(df8) //val lrModel = lr.fit(df8)
+    val pipelineModel: PipelineModel = pipeline.fit(df2) //val lrModel = lr.fit(df8)
     val trainingTime = (System.nanoTime() - startTime) / 1e9
     println(s"Training time: $trainingTime seconds")
 
