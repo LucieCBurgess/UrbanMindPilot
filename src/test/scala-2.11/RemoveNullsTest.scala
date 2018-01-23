@@ -132,30 +132,27 @@ class RemoveNullsTest extends FunSuite {
       case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
     }
 
-    val columnNames = Seq("001_Age", "002_Gender", "003_Where did you grow up", "005_What is your level of education", "006_Occupation",
+    val columnNames = Seq("002_Gender", "003_Where did you grow up", "005_What is your level of education", "006_Occupation",
       "007_How would you rate your physical health overall", "008_How would you rate your mental health overall")
 
-    //val df2 = baseDF.select(columnNames.map(baseDF(_)): _*) //selects columns in the baseDF
+    baseDF.select("participantUUID","001_Age","002_Gender","003_Where did you grow up").show()
 
-    // adds each column name in columnNames to the DF. baseDF is the accumulator
+
+    // adds each column name in columnNames to the DF. baseDF is the accumulator - not used
     val newDF: DataFrame = columnNames.foldLeft[DataFrame](baseDF)(
       (acc, c) =>
         acc.withColumn(c, col(c))
     )
 
-    // adds each column name in columnNames to the DF. baseDF is the accumulator
-    // Adds a new column for each column in columnNames, then applies the udf CalculateScore row by row to the DF column, depending on the column name
-    // FIXME this is not working - returns -1, so it's not picking up the column name or column contents correctly
-    // see test [07] DataWrangleTest
+    /** Adds a new column for each column in columnNames, then applies the udf CalculateScore row by row to the DF column, depending on the column name */
     val newDF2: DataFrame = columnNames.foldLeft(baseDF)(
       (baseDF, c) =>
-        baseDF.withColumn(c.concat("_numeric"), calculateScore(baseDF(c), baseDF(c))) //calculateScore(col(c), baseDF(col(c))
+        baseDF.withColumn(c.concat("_numeric"), calculateScore(lit(c), baseDF(c))) //calculateScore(col(c), baseDF(col(c))
     )
 
     newDF2.select("participantUUID", "assessmentNumber", "002_Gender", "002_Gender_numeric", "003_Where did you grow up", "003_Where did you grow up_numeric").show()
   }
 
-  //Reminder of pivot function for a StackOverflow question
   /** https://stackoverflow.com/questions/42643737/spark-applying-udf-to-dataframe-generating-new-columns-based-on-values-in-df */
   test("[03] playing with pivots") {
 
@@ -175,22 +172,13 @@ class RemoveNullsTest extends FunSuite {
 
     df2.show()
 
-    // Step 1. Add a new column which contains the contents of col1 concatenated with col2
-    // Step 2. // add a new column, "value" which contains the non-null contents of either col3 or col4
-    // Step 3. GroupBy the columns you want
-    // Step 4. pivot on newCol, which contains the values which are now to be column headings
-    // Step 5. Aggregate by the max of value, which will be the value itself if the groupBy is single-valued per group
-    // or alternatively .agg(first($"value") if value happens to be a string rather than a numeric type - max function can only be applied to a numeric type
-    // Step 6. order by newCol so DF is in ascending order
-    // Step 7. drop this column as you no longer need it, or skip this step if you want a column of values without nulls
-
-    val df3 = df2.withColumn("newCol", concat($"col1", $"col2")) //Step 1
-      .withColumn("value",when($"col3".isNotNull, $"col3").otherwise($"col4")) //Step 2
-      .groupBy($"col1",$"col2",$"col3",$"col4",$"newCol") //Step 3
-      .pivot("newCol") // Step 4
-      .agg(max($"value")) // Step 5
-      .orderBy($"newCol") // Step 6
-      .drop($"newCol") // Step 7
+    val df3 = df2.withColumn("newCol", concat($"col1", $"col2"))
+      .withColumn("value",when($"col3".isNotNull, $"col3").otherwise($"col4"))
+      .groupBy($"col1",$"col2",$"col3",$"col4",$"newCol")
+      .pivot("newCol")
+      .agg(max($"value"))
+      .orderBy($"newCol")
+      .drop($"newCol")
 
       df3.show()
   }

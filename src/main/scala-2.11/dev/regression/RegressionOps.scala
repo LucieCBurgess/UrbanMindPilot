@@ -1,6 +1,6 @@
 package dev.regression
 
-import dev.data_load.{Csvload, DataWrangle}
+import dev.data_load.{Csvload, DataWrangle, RemoveNulls}
 import org.apache.spark.ml.{Pipeline, PipelineModel, PipelineStage}
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.regression.{LinearRegression, LinearRegressionModel}
@@ -37,7 +37,9 @@ object RegressionOps {
 //      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
 //    }
 
-    val df = DataWrangle.runDataWrangle()
+    //val df = DataWrangle.runDataWrangle()
+
+    val df = RemoveNulls.runRemoveNulls()
 
     sys.exit() // Included for testing. Remove this when we want to get on to the regression
 

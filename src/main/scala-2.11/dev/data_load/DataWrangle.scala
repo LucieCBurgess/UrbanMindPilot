@@ -212,8 +212,15 @@ object DataWrangle {
     writeDFtoCsv(df8, output)
     df8.printSchema()
 
+    /** Output is the full pivoted dataset, filtered for participants with >50% of assessments only. Written to file outputfullfiltered.csv */
+
+    println(s"Filtered pivoted dataset contains ${df8.count()} rows")
+    println(s"Filtered pivoted dataset contains ${df8.columns.length} columns")
+
     df8
   }
+
+
 
   /*********** Helper functions *******************/
 
