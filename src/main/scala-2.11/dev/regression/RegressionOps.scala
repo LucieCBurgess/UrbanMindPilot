@@ -60,32 +60,16 @@ object RegressionOps {
     // Two problems: Strings must be converted to numeric types - Vector Assembler cannot deal with strings (obviously)
     // Vector Assembler can't deal with nulls -
     // see https://stackoverflow.com/questions/41362295/sparkexception-values-to-assemble-cannot-be-null
-    // I've commented out the String columns, let's see if we can get a regression model working on the numeric questions
-    // to start with
     val featureCols = Array(
-//      "001_Age",
-//      "002_Gender",
-//      "003_Where did you grow up",
-//      "004_How many years have you lived in the city",
-//      "005_What is your level of education",
-//      "006_Occupation",
-//      "007_How would you rate your physical health overall",
-//      "008_How would you rate your mental health overall",
-      "013_Are you normally aware of the urban environment around you",
-      "014_Do you walk from A to B as quickly as possible",
-      "015_Do you meander and daydream as you walk",
-      "016_Do you take detours through parks and green spaces",
-      "017_Do you eat on the move",
-      "018_Are you bothered when people litter",
-      "019_Do you follow rules ie keep off the grass",
-      "020_Do you stick to travel routes that you know",
-      "021_Do you give way to others in the street",
-      "022_Do you change your route after dark",
-      "024_How many hours do you spend online for work / study each day",
-      "025_How many hours do you spend online for recreation each day",
-      "027_How often do you have a drink containing alcohol",
-      //   "028_How many units of alcohol do you drink on a typical day when you are drinking", parses as string, why?
-      "029_How often have you had 6 or more units if female or 8 or more if male on a single occasion in the last year")
+      "001_Age_numeric",
+      "002_Gender_numeric",
+      "003_Where did you grow up_numeric",
+      "004_How many years have you lived in the city_numeric",
+      "005_What is your level of education_numeric",
+      "006_Occupation_numeric",
+      "007_How would you rate your physical health overall_numeric",
+      "008_How would you rate your mental health overall_numeric")
+
 
     val featureAssembler = new VectorAssembler().setInputCols(featureCols).setOutputCol("features")
     pipelineStages += featureAssembler
