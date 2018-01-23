@@ -85,10 +85,10 @@ class RemoveNullsTest extends FunSuite {
     val result8 = momDF.select(count(when($"112_Can you see trees" === "not sure", true))).show //3
   }
 
-  test("[02 Turn String responses to numeric for ordinal data questions") {
+  /** Calculate validated score as an int and add new column to the base/ mom files as necessary */
+  test("[02] Convert String responses to numeric for ordinal data questions") {
 
-    /** Calculate validated score as an int and add new column to the base/ mom files as necessary*/
-    val calculateScore = udf((questionIdString: String, answerText: String) => (questionIdString, answerText) match {
+    val calculateScore = udf((columnName: String, answerText: String) => (columnName, answerText) match {
 
       case ("002_Gender", "Female") => 0
       case ("002_Gender", "Male") => 1
@@ -132,15 +132,66 @@ class RemoveNullsTest extends FunSuite {
       case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
     }
 
-    val df2 = baseDF.withColumn("002_Gender_score", when(colcalculateScore(df("QuestionId"), df("AnswerText")))
+    val columnNames = Seq("001_Age", "002_Gender", "003_Where did you grow up", "005_What is your level of education", "006_Occupation",
+      "007_How would you rate your physical health overall", "008_How would you rate your mental health overall")
 
-    val newDf = df.withColumn("D", when($"B".isNull or $"B" === "", 0).otherwise(1))
+    //val df2 = baseDF.select(columnNames.map(baseDF(_)): _*) //selects columns in the baseDF
 
+    // adds each column name in columnNames to the DF. baseDF is the accumulator
+    val newDF: DataFrame = columnNames.foldLeft[DataFrame](baseDF)(
+      (acc, c) =>
+        acc.withColumn(c, col(c))
+    )
 
+    // adds each column name in columnNames to the DF. baseDF is the accumulator
+    // Adds a new column for each column in columnNames, then applies the udf CalculateScore row by row to the DF column, depending on the column name
+    // FIXME this is not working - returns -1, so it's not picking up the column name or column contents correctly
+    // see test [07] DataWrangleTest
+    val newDF2: DataFrame = columnNames.foldLeft(baseDF)(
+      (baseDF, c) =>
+        baseDF.withColumn(c.concat("_numeric"), calculateScore(baseDF(c), baseDF(c))) //calculateScore(col(c), baseDF(col(c))
+    )
 
-
+    newDF2.select("participantUUID", "assessmentNumber", "002_Gender", "002_Gender_numeric", "003_Where did you grow up", "003_Where did you grow up_numeric").show()
   }
 
+  //Reminder of pivot function for a StackOverflow question
+  /** https://stackoverflow.com/questions/42643737/spark-applying-udf-to-dataframe-generating-new-columns-based-on-values-in-df */
+  test("[03] playing with pivots") {
 
+    val df = Seq(("A","X",6,-1),
+      ("B", "Z",-1,5),
+      ("C","Y",4,-1)).toDF("col1","col2","col3","col4")
 
+    df.show() // this won't work with null values so I've used -1 instead
+
+    val inputpath = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/simpletest.csv" //simpletest contains nulls
+
+    /** Load dataframe from csv file */
+    val df2 = Csvload.createDataFrame(inputpath) match {
+      case Some(dfload) => dfload
+      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
+    }
+
+    df2.show()
+
+    // Step 1. Add a new column which contains the contents of col1 concatenated with col2
+    // Step 2. // add a new column, "value" which contains the non-null contents of either col3 or col4
+    // Step 3. GroupBy the columns you want
+    // Step 4. pivot on newCol, which contains the values which are now to be column headings
+    // Step 5. Aggregate by the max of value, which will be the value itself if the groupBy is single-valued per group
+    // or alternatively .agg(first($"value") if value happens to be a string rather than a numeric type - max function can only be applied to a numeric type
+    // Step 6. order by newCol so DF is in ascending order
+    // Step 7. drop this column as you no longer need it, or skip this step if you want a column of values without nulls
+
+    val df3 = df2.withColumn("newCol", concat($"col1", $"col2")) //Step 1
+      .withColumn("value",when($"col3".isNotNull, $"col3").otherwise($"col4")) //Step 2
+      .groupBy($"col1",$"col2",$"col3",$"col4",$"newCol") //Step 3
+      .pivot("newCol") // Step 4
+      .agg(max($"value")) // Step 5
+      .orderBy($"newCol") // Step 6
+      .drop($"newCol") // Step 7
+
+      df3.show()
+  }
 }

@@ -553,7 +553,14 @@ class DataWrangleTest extends FunSuite {
 
     assert(columnNames.length === 111) //105 in the test file, 112 in the full file, 111 in the filtered file.
     // Full file has an extra question, "135_I feel energy to spare"
-    // which is a partial duplicate of 135_I have energy to spare, but this gets filtered out by the join
+    // which is a partial duplicate of 135_I have energy to spare, but this gets filtered out by the filter function in test 15 below
+
+    // FIXME ValidatedScore includes a score for the columns we want numeric answers to. But we also want to keep the string answers
+    // Possibly the best way to approach this is to pivot on AnswerText (cmbined with AnswerValue?) and then map the data to a numeric response
+    // question by question on the column, once the data has been pivoted
+    // For the moment, map the further numeric data in the RemoveNulls tests and come back to this
+    // It's not 100% necessary but would be nice to be consistent
+    // Is it possible to do this using the pivot function in the df6 routine below?
 
     val df6 = df5.groupBy("participantUUID", "assessmentNumber", "geotagStart", "geotagEnd")
       .pivot("Q_id_string_cleaned")
