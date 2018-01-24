@@ -53,10 +53,6 @@ object Main {
         .text(s"Fraction of data to be held out for testing, default: ${defaultParams.fracTest}")
         .action((x, c) => c.copy(fracTest = x))
 
-      opt[String]('i', "input")
-        .text(s"input is the input path, default: ${defaultParams.input}")
-        .action {(x, c) => c.copy(input = x)}
-
       checkConfig { params =>
         if (params.fracTest < 0.1 || params.fracTest >= 1) {
           failure(s"fracTest ${params.fracTest} value is incorrect; it should be in range [0.1,1).")

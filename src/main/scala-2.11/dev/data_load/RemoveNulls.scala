@@ -6,33 +6,20 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 /**
   * Created by lucieburgess on 23/01/2018.
+  * Removes null values from the dataframe produced by DataWrangle, and returns a new dataframe with only the columns
+  * used as predictors.
+  * val inputpath = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/outputfullfiltered.csv"
   */
 object RemoveNulls {
 
-  def runRemoveNulls(): DataFrame = {
+  def runRemoveNulls(df: DataFrame): DataFrame = {
 
     val spark: SparkSession = SparkSession
       .builder()
       .master("local[*]")
-      .appName(s"Data cleaning object").getOrCreate()
+      .appName(s"Remove nulls object").getOrCreate()
 
     import spark.implicits._
-
-    val inputpath = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/outputfullfiltered.csv"
-
-    /** Load dataframe from csv file */
-    val df = Csvload.createDataFrame(inputpath) match {
-      case Some(dfload) => dfload
-      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
-    }
-
-    /** Writes dataframe to a single csv file using the given path */
-    def writeDFtoCsv(df: DataFrame, outputPath: String): Unit = {
-      df.coalesce(1)
-        .write.format("com.databricks.spark.csv")
-        .option("header", "true")
-        .save(outputPath)
-    }
 
     df.printSchema()
     println(s"Filtered pivoted dataset contains ${df.count()} rows")
@@ -117,8 +104,11 @@ object RemoveNulls {
     val outputBase = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/baseDFnumeric.csv"
     writeDFtoCsv(baseDF3, outputBase)
 
-    // Now combine the indoors/ outdoors columns to get a single set of predictors, columns 201-205
-
+    /**
+      * Now do the same for the momentary data.
+      * Combine the indoors/ outdoors columns to get a single set of predictors, columns 201-205
+      * Map the categorical string variables to numeric data and choose the predictors we want
+      */
     val momDF2 = momDF.withColumn("201_Can you see trees", when($"107_Can you see trees".isNotNull,$"107_Can you see trees").otherwise($"112_Can you see trees")) //Indoors and Outdoors
       .withColumn("202_Can you see the sky",when($"108_Can you see the sky".isNotNull,$"108_Can you see the sky").otherwise("no_data")) // if Outdoors, no data
       .withColumn("203_Can you hear birds singing", when($"113_Can you hear birds singing".isNotNull,$"113_Can you hear birds singing").otherwise("no_data")) // if Indoors, no data
@@ -159,7 +149,7 @@ object RemoveNulls {
       case _ => -1
     })
 
-    val columnNamesMom = Seq("201_Can you see trees", "202_Can you see the sky", "203_Can you hear birds singing", "204_Can you see or hear water", "205_Do you feel in contact with nature")
+    val columnNamesMom = Seq("104_Are you indoors or outdoors","201_Can you see trees", "202_Can you see the sky", "203_Can you hear birds singing", "204_Can you see or hear water", "205_Do you feel in contact with nature")
 
     /** Adds a new column with numeric data for each of the momentary columns that we want to use as predictors */
     val momDF3: DataFrame = columnNamesMom.foldLeft(momDF2)(
@@ -168,7 +158,7 @@ object RemoveNulls {
     )
 
     val momDF4 = momDF3.select($"participantUUID".alias("momParticipantUUID"), $"assessmentNumber".alias("momAssessmentNumber"),$"geotagStart".alias("momGeoTagStart"),
-      $"geotagEnd".alias("momGeoTagEnd"), $"momWellBeingScore", $"201_Can you see trees",	$"202_Can you see the sky",	$"203_Can you hear birds singing",
+      $"geotagEnd".alias("momGeoTagEnd"), $"momWellBeingScore", $"104_Are you indoors or outdoors", $"201_Can you see trees",	$"202_Can you see the sky",	$"203_Can you hear birds singing",
       $"204_Can you see or hear water", $"205_Do you feel in contact with nature", $"201_Can you see trees_numeric", $"202_Can you see the sky_numeric",
       $"203_Can you hear birds singing_numeric",$"204_Can you see or hear water_numeric",	$"205_Do you feel in contact with nature_numeric")
 
@@ -188,26 +178,18 @@ object RemoveNulls {
     val outputJoined = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/joinedDFnumeric.csv"
     writeDFtoCsv(joinedDF, outputJoined)
 
-
-//    /** Reproduce sample sizes for participants who completed > 50% assessments - move this to a 'ComputeResults' class */
-//
-//    println("Number of momentary assessments indoors")
-//    val result = momDF.select(count(when($"104_Are you indoors or outdoors" === "Indoors", true))).show
-//
-//    println("Number of momentary assessments outdoors")
-//    val result2 = momDF.select(count(when($"104_Are you indoors or outdoors" === "Outdoors", true))).show
-//
-//    println("Can you see trees?")
-//    val result3 = momDF.select(count(when($"107_Can you see trees" === "yes", true))).show//968
-//    val result4 = momDF.select(count(when($"107_Can you see trees" === "no", true))).show//781
-//    val result5 = momDF.select(count(when($"107_Can you see trees" === "not sure", true))).show//26
-//    val result6 = momDF.select(count(when($"112_Can you see trees" === "yes", true))).show//245
-//    val result7 = momDF.select(count(when($"112_Can you see trees" === "no", true))).show//19
-//    val result8 = momDF.select(count(when($"112_Can you see trees" === "not sure", true))).show //3
-//
-//    //FIXME need to continue this for the other measurements
-
     joinedDF
 
   }
+
+  // ******************** Helper function *****************************
+
+  /** Writes dataframe to a single csv file using the given path */
+  def writeDFtoCsv(df: DataFrame, outputPath: String): Unit = {
+    df.coalesce(1)
+      .write.format("com.databricks.spark.csv")
+      .option("header", "true")
+      .save(outputPath)
+  }
+
 }

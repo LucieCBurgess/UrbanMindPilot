@@ -1,6 +1,5 @@
 package dev.data_load
 
-import dev.regression.RegressionParams
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
@@ -10,11 +9,9 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
   */
 object DataWrangle {
 
-  val defaultParams = RegressionParams()
-  val input: String = defaultParams.input
   val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/outputfullfiltered.csv"
 
-  def runDataWrangle(): DataFrame = {
+  def runDataWrangle(inputFile: String): DataFrame = {
 
     val spark: SparkSession = SparkSession
       .builder()
@@ -25,7 +22,7 @@ object DataWrangle {
 
 
     /** Load training and test data and cache it */
-    val df = Csvload.createDataFrame(input) match {
+    val df = Csvload.createDataFrame(inputFile) match {
       case Some(dfload) => dfload
       case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
     }
