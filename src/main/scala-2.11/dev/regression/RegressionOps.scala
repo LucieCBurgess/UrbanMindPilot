@@ -31,27 +31,30 @@ object RegressionOps {
 
     println("Choose whether to clean the raw data files or import the cleaned data file.")
 
-    val cleanData: Boolean = false // change this to true if you want to clean a new data file
+    val cleanData: Boolean = true // change this to true if you want to clean a new data file
+
+    var file: String = ""
+    if (cleanData == true) file = cleanInput
+    else file = dirtyInput
 
     /**
       * Load cleaned data file - avoids having to run the cleaning operation every time
       * Alternatively call: val df: DataFrame = DataWrangle.runDataWrangle()
       */
 
-//    val df = Csvload.createDataFrame(cleanInput) match {
-//      case Some(dfload) => dfload
-//      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
-//    }
+    val df = Csvload.createDataFrame(file) match {
+      case Some(dfload) => dfload
+      case None => throw new UnsupportedOperationException("Couldn't create DataFrame")
+    }
 
-    val df = RemoveNulls.runRemoveNulls(DataWrangle.runDataWrangle(dirtyInput))
+    //val df = RemoveNulls.runRemoveNulls(DataWrangle.runDataWrangle(file))
 
     ComputeStatistics.runComputeStatistics(df)
     df.printSchema()
 
     val nSamples: Int = df.count().toInt
-    println(s"The number of training samples is $nSamples")
-
-    sys.exit()
+    println(s"The number of training samples is ${df.count.toInt} ")
+    println(s"The number of columns in the dataframe is ${df.columns.length} ")
 
     /** Set up the logistic regression pipeline */
     val pipelineStages = new mutable.ArrayBuffer[PipelineStage]()
@@ -61,14 +64,20 @@ object RegressionOps {
     // Vector Assembler can't deal with nulls -
     // see https://stackoverflow.com/questions/41362295/sparkexception-values-to-assemble-cannot-be-null
     val featureCols = Array(
-      "001_Age_numeric",
+      "001_Age",
       "002_Gender_numeric",
       "003_Where did you grow up_numeric",
-      "004_How many years have you lived in the city_numeric",
       "005_What is your level of education_numeric",
       "006_Occupation_numeric",
       "007_How would you rate your physical health overall_numeric",
-      "008_How would you rate your mental health overall_numeric")
+      "008_How would you rate your mental health overall_numeric",
+      "baseWellBeingScore",
+      "baseImpulseScore",
+      "201_Can you see trees_numeric",
+      "202_Can you see the sky_numeric",
+      "203_Can you hear birds singing_numeric",
+      "204_Can you see or hear water_numeric",
+      "205_Do you feel in contact with nature_numeric")
 
 
     val featureAssembler = new VectorAssembler().setInputCols(featureCols).setOutputCol("features")
@@ -76,7 +85,7 @@ object RegressionOps {
 
     val lr = new LinearRegression()
       .setFeaturesCol("features")
-      .setLabelCol("baseWellbeingScore")
+      .setLabelCol("momWellBeingScore")
       .setRegParam(params.regParam)
       .setElasticNetParam(params.elasticNetParam)
       .setMaxIter(params.maxIter)
@@ -96,8 +105,14 @@ object RegressionOps {
 
     /** Print the weights and intercept for linear regression, from the trained model */
     val lrModel = pipelineModel.stages.last.asInstanceOf[LinearRegressionModel]
-    println(s"Training features are as follows: ")
+    println(s"****************Training features are as follows: ******************")
     println(s"Weights: ${lrModel.coefficients} Intercept: ${lrModel.intercept}")
+
+    /** Calculate the correlation coefficient between the features and the momentary wellbeing (label) */
+
+
+
+
 
   }
 }
