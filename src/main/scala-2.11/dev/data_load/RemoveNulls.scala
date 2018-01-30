@@ -101,9 +101,6 @@ object RemoveNulls {
     println("Printing the schema of baseDF3")
     baseDF3.printSchema()
 
-    val outputBase = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/baseDFnumeric.csv"
-    writeDFtoCsv(baseDF3, outputBase)
-
     /**
       * Now do the same for the momentary data.
       * Combine the indoors/ outdoors columns to get a single set of predictors, columns 201-205
@@ -159,14 +156,11 @@ object RemoveNulls {
 
     val momDF4 = momDF3.select($"participantUUID".alias("momParticipantUUID"), $"assessmentNumber".alias("momAssessmentNumber"),$"geotagStart".alias("momGeoTagStart"),
       $"geotagEnd".alias("momGeoTagEnd"), $"momWellBeingScore", $"104_Are you indoors or outdoors", $"201_Can you see trees",	$"202_Can you see the sky",	$"203_Can you hear birds singing",
-      $"204_Can you see or hear water", $"205_Do you feel in contact with nature", $"201_Can you see trees_numeric", $"202_Can you see the sky_numeric",
+      $"204_Can you see or hear water", $"205_Do you feel in contact with nature", $"104_Are you indoors or outdoors_numeric", $"201_Can you see trees_numeric", $"202_Can you see the sky_numeric",
       $"203_Can you hear birds singing_numeric",$"204_Can you see or hear water_numeric",	$"205_Do you feel in contact with nature_numeric")
 
     println("Printing the schema of momDF4")
     momDF4.printSchema()
-
-    val outputMom = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/momDFnumeric.csv"
-    writeDFtoCsv(momDF4, outputMom)
 
     /** Finally join the two datasets to get a dataset without nulls and select relevant columns */
 

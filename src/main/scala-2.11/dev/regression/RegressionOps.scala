@@ -16,6 +16,7 @@ object RegressionOps {
   val defaultParams = RegressionParams()
   val dirtyInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw.csv"
   val cleanInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/joinedDFnumeric50.csv"
+  val removeNullsInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/outputfullfiltered50.csv"
   val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/regression.csv"
 
   def run(params: RegressionParams): Unit = {
@@ -49,7 +50,13 @@ object RegressionOps {
 
     //val df = RemoveNulls.runRemoveNulls(DataWrangle.runDataWrangle(file))
 
+    //val df = RemoveNulls.runRemoveNulls(df0)
+
+
     ComputeStatistics.runComputeStatistics(df)
+
+    sys.exit()
+
     df.printSchema()
 
     val nSamples: Int = df.count().toInt
@@ -73,6 +80,7 @@ object RegressionOps {
       "008_How would you rate your mental health overall_numeric",
       "baseWellBeingScore",
       "baseImpulseScore",
+      "104_Are you indoors or outdoors_numeric",
       "201_Can you see trees_numeric",
       "202_Can you see the sky_numeric",
       "203_Can you hear birds singing_numeric",

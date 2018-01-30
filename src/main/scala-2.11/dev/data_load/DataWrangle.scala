@@ -103,12 +103,22 @@ object DataWrangle {
       case _ => answerText
     })
 
+    /**
+      * Filter out question Ids relating to games
+      * Create a new column, Q_id_string - each row will become a column in the new dataset
+      * Calculate the correct scores from the answer text - particularly important for impulsivity as the database output was incorrect
+      */
     val df2 = df.filter($"QuestionId" < 2000)
       .withColumn("Q_id_new", addLeadingZeros(df("QuestionId")))
       .withColumn("Q_id_string", concat($"Q_id_new", lit("_"), $"Question"))
       .orderBy(asc("participantUUID"), asc("assessmentNumber"), asc("Q_id_string"))
       .withColumn("ValidatedScore", calculateScore(df("QuestionId"), df("AnswerText")))
 
+    /**
+      *  Select the participant UUID and give it an alias, filtered participant UUID
+      *  Count number of assessments per participant as 'totalAssessments'
+      *  keep records only for which number of assessments > 25
+      */
     val df3: DataFrame = df2.select($"participantUUID".alias("filteredParticipantUUID"),$"assessmentNumber")
       .groupBy("filteredParticipantUUID")
       .agg(countDistinct("assessmentNumber") as("totalAssessments"))
@@ -139,7 +149,8 @@ object DataWrangle {
     /**
       * Now calculate the Edinburgh-Warwick wellbeing score at baseline
       */
-    val baseWellBeingCols = List(col("041_Ive been feeling optimistic about the future"),
+    val baseWellBeingCols = List(
+      col("041_Ive been feeling optimistic about the future"),
       col("042_Ive been feeling useful"),
       col("043_Ive been feeling relaxed"),
       col("044_Ive been feeling interested in other people"),
@@ -157,7 +168,8 @@ object DataWrangle {
     /**
       * Now calculate the Edinburgh-Warwick wellbeing score during momentary assessments
       */
-    val momWellBeingCols = List(col("131_Right now I feel optimistic about the future"),
+    val momWellBeingCols = List(
+      col("131_Right now I feel optimistic about the future"),
       col("132_Right now I feel useful"),
       col("133_Right now I feel relaxed"),
       col("134_Right now I feel interested in other people"),
@@ -176,7 +188,8 @@ object DataWrangle {
     /**
       * Now calculate the Impulsivity score at baseline
       */
-    val baseImpulseCols = List(col("031_I am focused seeing things through to the end"),
+    val baseImpulseCols = List(
+      col("031_I am focused seeing things through to the end"),
       col("032_I plan work tasks and activities in my free time carefully"),
       col("033_I plan events and activities well ahead of time"),
       col("034_I think carefully before doing and saying things"),
@@ -189,7 +202,8 @@ object DataWrangle {
     /**
       * Now calculate the Impulsivity score during momentary assessments
       */
-    val momImpulseCols = List(col("154_Today I was focused seeing things through to the end"),
+    val momImpulseCols = List(
+      col("154_Today I was focused seeing things through to the end"),
       col("155_Today I planned work tasks and activities in my free time carefully"),
       col("156_Today I planned events and activities well ahead of time"),
       col("157_Today I thought carefully before doing and saying things"),
