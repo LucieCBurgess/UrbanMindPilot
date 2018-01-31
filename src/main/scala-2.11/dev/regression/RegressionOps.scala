@@ -1,8 +1,7 @@
 package dev.regression
 
 import dev.data_load.{ComputeStatistics, Csvload, DataWrangle, RemoveNulls}
-import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel}
-import org.apache.spark.ml.evaluation.{BinaryClassificationEvaluator, Evaluator, RegressionEvaluator}
+import org.apache.spark.ml.evaluation.{Evaluator, RegressionEvaluator}
 import org.apache.spark.ml.{Pipeline, PipelineModel, PipelineStage, Transformer}
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.regression.{LinearRegression, LinearRegressionModel}
@@ -17,10 +16,12 @@ import scala.collection.mutable
 object RegressionOps {
 
   val defaultParams = RegressionParams()
-  val dirtyInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw.csv"
+  val rawInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/db_1489678713_raw.csv"
   val cleanInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/joinedDFnumeric50.csv"
   val removeNullsInput: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/outputfullfiltered50.csv"
-  val output: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/regression.csv"
+  val predictionTest: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/predictionTest.csv"
+  val predictionTrain: String = "/Users/lucieburgess/Documents/KCL/Urban_Mind_Analytics/Pilot_data/Pilot_data_output/predictionTrain.csv"
+
 
   def run(params: RegressionParams): Unit = {
 
@@ -45,9 +46,7 @@ object RegressionOps {
 
     //val df = RemoveNulls.runRemoveNulls(df0)
 
-    //ComputeStatistics.runComputeStatistics(df)
-
-    //sys.exit()
+    ComputeStatistics.runComputeStatistics(df)
 
     df.printSchema()
 
@@ -67,7 +66,7 @@ object RegressionOps {
     /** Choose the features to be passed into the model */
     val featureCols = Array(
       "baseWellBeingScore",
-      "baseImpulseScore",
+      //"baseImpulseScore",
       //"001_Age",
       //"002_Gender_numeric",
       //"003_Where did you grow up_numeric",
@@ -80,7 +79,12 @@ object RegressionOps {
       "202_Can you see the sky_numeric",
       "203_Can you hear birds singing_numeric",
       "204_Can you see or hear water_numeric",
-      "205_Do you feel in contact with nature_numeric")
+      "205_Do you feel in contact with nature_numeric",
+      "impulseInt1",
+      "impulseInt2",
+      "impulseInt3",
+      "impulseInt4",
+      "impulseInt5")
 
 
     val featureAssembler = new VectorAssembler().setInputCols(featureCols).setOutputCol("features")
@@ -101,7 +105,7 @@ object RegressionOps {
     /** Randomly split data into test, train with 50% split */
     val train: Double = 1 - params.fracTest
     val test: Double = params.fracTest
-    val Array(trainData, testData) = df.randomSplit(Array(train, test), seed = 123)
+    val Array(trainData, testData) = df2.randomSplit(Array(train, test), seed = 123)
 
     /** Set the pipeline from the pipeline stages */
     val pipeline: Pipeline = new Pipeline().setStages(pipelineStages.toArray)
@@ -121,8 +125,8 @@ object RegressionOps {
     /** Now use the training data to estimate the test data and calculate the test MSE */
     /** Make predictions and evaluate the model using BinaryClassificationEvaluator */
     println("Evaluating model and calculating train and test AUROC - larger is better")
-    evaluateRegressionModel("Train", pipelineModel, trainData)
-    evaluateRegressionModel("Test", pipelineModel, testData)
+    evaluateRegressionModel("Train", pipelineModel, trainData, predictionTrain)
+    evaluateRegressionModel("Test", pipelineModel, testData, predictionTest)
 
     /** Perform cross-validation on the regression */
     //println("Performing cross validation and computing best parameters")
@@ -152,7 +156,7 @@ object RegressionOps {
     * @param model Must fit ClassificationModel abstraction, with Transformers and Estimators
     * @param df    DataFrame with "prediction" and labelColName columns
     */
-  private def evaluateRegressionModel(modelName: String, model: Transformer, df: DataFrame): Unit = {
+  private def evaluateRegressionModel(modelName: String, model: Transformer, df: DataFrame, output: String): Unit = {
 
     val startTime = System.nanoTime()
     val predictions = model.transform(df).cache()
@@ -160,7 +164,7 @@ object RegressionOps {
     println(s"Running time: $predictionTime seconds")
     predictions.printSchema()
 
-    val selected = predictions.select("momWellBeingScore", "features", "prediction")
+    val selected: DataFrame = predictions.select("momWellBeingScore", "features", "prediction")
     selected.show()
 
     val evaluator = SingletonEvaluator.getEvaluator
@@ -169,7 +173,6 @@ object RegressionOps {
 
     println(s"Regression results for $modelName: ")
     println(s"The accuracy of the model $modelName is $error") // FIXME get metric name
-
   }
 
   /**
