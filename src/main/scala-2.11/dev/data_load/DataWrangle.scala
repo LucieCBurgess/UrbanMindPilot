@@ -44,11 +44,13 @@ object DataWrangle {
       case (x, "Often") if 13 to 22 contains x => "4"
       case (x, "Always") if 13 to 22 contains x => "5"
 
+        // I am focused, seeing things through: always maps to low score
       case (x, "Rarely /<br>Never") if 31 to 35 contains x => "4" //Trait impulsivity - baseline
       case (x, "Occasionally") if 31 to 35 contains x => "3"
       case (x, "Often") if 31 to 35 contains x => "2"
       case (x, "Almost always /<br>Always") if 31 to 35 contains x => "1"
 
+        // I encounter problems: always maps to high score
       case (x, "Rarely /<br>Never") if 36 to 39 contains x => "1" //Trait impulsivity - baseline
       case (x, "Occasionally") if 36 to 39 contains x => "2"
       case (x, "Often") if 36 to 39 contains x => "3"

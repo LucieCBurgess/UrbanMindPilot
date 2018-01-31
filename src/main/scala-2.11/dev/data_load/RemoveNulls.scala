@@ -107,10 +107,10 @@ object RemoveNulls {
       * Map the categorical string variables to numeric data and choose the predictors we want
       */
     val momDF2 = momDF.withColumn("201_Can you see trees", when($"107_Can you see trees".isNotNull,$"107_Can you see trees").otherwise($"112_Can you see trees")) //Indoors and Outdoors
-      .withColumn("202_Can you see the sky",when($"108_Can you see the sky".isNotNull,$"108_Can you see the sky").otherwise("no_data")) // if Outdoors, no data
-      .withColumn("203_Can you hear birds singing", when($"113_Can you hear birds singing".isNotNull,$"113_Can you hear birds singing").otherwise("no_data")) // if Indoors, no data
-      .withColumn("204_Can you see or hear water", when($"114_Can you see or hear water".isNotNull, $"114_Can you see or hear water").otherwise("no_data")) // If Indoors, no data
-      .withColumn("205_Do you feel in contact with nature", when($"121_Do you feel you have any contact with nature in this place".isNotNull,$"121_Do you feel you have any contact with nature in this place").otherwise("no_data"))
+      .withColumn("202_Can you see the sky",when($"108_Can you see the sky".isNotNull,$"108_Can you see the sky").otherwise("NA")) // if Outdoors, no data
+      .withColumn("203_Can you hear birds singing", when($"113_Can you hear birds singing".isNotNull,$"113_Can you hear birds singing").otherwise("NA")) // if Indoors, no data
+      .withColumn("204_Can you see or hear water", when($"114_Can you see or hear water".isNotNull, $"114_Can you see or hear water").otherwise("NA")) // If Indoors, no data
+      .withColumn("205_Do you feel in contact with nature", when($"121_Do you feel you have any contact with nature in this place".isNotNull,$"121_Do you feel you have any contact with nature in this place").otherwise("NA"))
 
     /** Prepare momentary assessment file for regression - combine indoor and outdoor measurements */
     val calculateScoreMom: UserDefinedFunction = udf((columnName: String, answerText: String) => (columnName, answerText) match {

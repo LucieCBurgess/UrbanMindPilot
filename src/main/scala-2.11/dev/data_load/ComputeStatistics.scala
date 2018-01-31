@@ -36,19 +36,21 @@ object ComputeStatistics {
     calculateTotals(df, "003_Where did you grow up")
     calculateTotals(df, "006_Occupation")
     calculateTotals(df, "005_What is your level of education")
+    calculateTotals(df, "007_How would you rate your physical health overall")
+    calculateTotals(df, "008_How would you rate your mental health overall")
 
-    calculateMeanBaseColumn(df, "baseWellBeingScore") // base wellbeing score
+    calculateMeanBaseColumn(df, "baseWellBeingScore") // mean base wellbeing score
 
     df.select(mean($"momWellBeingScore")).show() // mean momentary wellbeing score
 
-    calculateMeanBaseColumn(df, "baseImpulseScore") // base trait impulsivity score
+    calculateMeanBaseColumn(df, "baseImpulseScore") // mean trait impulsivity score at baseline
 
     calculateMeanAssessments(df) // mean number of assessments
 
     /** Calculate number of momentary assessments, indoors or outdoors */
     df.select(count(when($"104_Are you indoors or outdoors" === "Indoors", true))).show
     df.select(count(when($"104_Are you indoors or outdoors" === "Outdoors", true))).show
-    df.select(count(when($"104_Are you indoors or outdoors" === "no_data", true))).show
+    df.select(count(when($"104_Are you indoors or outdoors" === "NA", true))).show
 
 
     countResults(df, "201_Can you see trees") // 1211, 800, 29, 0 = 2040
@@ -56,8 +58,6 @@ object ComputeStatistics {
     countResults(df, "203_Can you hear birds singing") // 115, 133, 19, 1773 = 2040
     countResults(df, "204_Can you see or hear water") // 56, 204, 7, 1773
     countResults(df, "205_Do you feel in contact with nature") // 152, 89, 25, 1774
-
-    sys.exit()
 
     }
 
@@ -69,7 +69,7 @@ object ComputeStatistics {
     df.select(count(when(col(colname) === "yes", true))).show()
     df.select(count(when(col(colname) === "no", true))).show()
     df.select(count(when(col(colname) === "not sure", true))).show()
-    df.select(count(when(col(colname) === "no_data", true))).show()
+    df.select(count(when(col(colname) === "NA", true))).show()
     df.select(count(lit(colname))).show()
   }
 

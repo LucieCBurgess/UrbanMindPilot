@@ -7,26 +7,36 @@ wd <- getwd()
 
 #Upload file and set column names
 df <- read.csv("joinedDFnumeric50.csv", header = TRUE, sep = ",", dec = ".")
-dim(df) # 2040 observations of 33 variables
+dim(df) # 2040 observations of 34 variables
 names(df)
 
+# Table S1 - Correlation coefficients between covariates in statistical models
+
 cor(df$baseWellBeingScore, df$X001_Age, method = "pearson") # -0.04
-cor(df$baseWellBeingScore, df$X001_Age, method = "spearman") # 0.067
-cor(df$baseWellBeingScore, df$X001_Age, method = "kendall") # 0.052
 
-cor.test(df$baseWellBeingScore, df$X001_Age, method = "kendall")
+cor(df$baseWellBeingScore, df$X002_Gender_numeric) # 0.1193 - Pearson
 
-cor(df$baseWellBeingScore, df$X002_Gender_numeric)
+install.packages("DescTools") # Installs GKgamma{DescTools}
+library(DescTools) 
+?? GoodmanKruskalGamma
 
-res1 <- cor(df) # x must be numeric. Can't compute correlation coefficient on categorical data
-round(res, 4)
+install.packages("vcdExtra") # Installs GKgamma{vcdExtra}
+library(vcdExtra)
+?? GKgamma
 
-res2 <- GKtau(df$baseWellBeingScore, df$X002_Gender, dgts = 4, includeNA = "no")
-res2
-nrow(df)
+gkdatax <- subset(df, select=c("baseWellBeingScore","X002_Gender", "X003_Where.did.you.grow.up","X005_What.is.your.level.of.education", "X006_Occupation", "X104_Are.you.indoors.or.outdoors",                            
+                  "X201_Can.you.see.trees","X202_Can.you.see.the.sky","X203_Can.you.hear.birds.singing", "X204_Can.you.see.or.hear.water","X205_Do.you.feel.in.contact.with.nature"))
+dim(gkdatax)
 
-install.packages("DescTools")
-library(DescTools)
+gkdatay <- subset(df, select=c("baseWellBeingScore","X002_Gender", "X003_Where.did.you.grow.up","X005_What.is.your.level.of.education", "X006_Occupation"))
+
+gkdataz <- subset(df, select=c("X002_Gender","X006_Occupation"))
+dim(gkdataz)
+GKgamma(gkdataz, level = 0.95)
+
+res <- GoodmanKruskalGamma(gkdatay, gkdatax, conf.level = NA)
+res
+res
 
 res3 <- GoodmanKruskalGamma(df$baseWellBeingScore, df$X002_Gender, conf.level = NA)
 res3
@@ -43,10 +53,12 @@ res6
 res7 <- GoodmanKruskalGamma(df$baseWellBeingScore, df$X203_Can.you.hear.birds.singing, conf.level = NA)
 res7
 
+res7 <- GoodmanKruskalGamma(df$X203_Can.you.hear.birds.singing, df$X006_Occupation, conf.level = NA)
+res7
+
 ?GoodmanKruskalGamma
 
-install.packages("vcdExtra")
-library(vcdExtra)
+
 
 GKgamma(df)
 
@@ -58,7 +70,7 @@ GKgamma(newdata)
 
 ## Now calculate a linear regression using various predictors.
 
-lm.fit = lm(df$momWellBeingScore ~ df$baseWellBeingScore + df$baseImpulseScore + df$X002_Gender_numeric +df$X003_Where.did.you.grow.up_numeric
+lm.fit = lm(df$momWellBeingScore ~ df$baseWellBeingScore + df$X001_Age + df$X002_Gender_numeric +df$X003_Where.did.you.grow.up_numeric
             + df$X005_What.is.your.level.of.education_numeric + df$X006_Occupation_numeric + df$X007_How.would.you.rate.your.physical.health.overall_numeric + df$X008_How.would.you.rate.your.mental.health.overall_numeric
             + df$X104_Are.you.indoors.or.outdoors + df$X201_Can.you.see.trees_numeric + df$X202_Can.you.see.the.sky_numeric + df$X203_Can.you.hear.birds.singing_numeric +df$X204_Can.you.see.or.hear.water_numeric+ df$X205_Do.you.feel.in.contact.with.nature_numeric)
 
@@ -67,14 +79,14 @@ summary(lm.fit)
 ## Table S4. Associations between momentary mental wellbeing and the interaction between trait impulsivity score and self-reported environmental features
 # adjusted for age, gender, occupation and mental wellbeing over the previous two weeks for > 50% completed assessments
 
-predictors = c("X104_Are.you.indoors.or.outdoors", "X201_Can.you.see.trees_numeric", "X202_Can.you.see.the.sky_numeric", "X203_Can.you.hear.birds.singing_numeric", "X204_Can.you.see.or.hear.water_numeric", "X205_Do.you.feel.in.contact.with.nature_numeric")
-n = length(predictors)-1
+predictors = c(df$X104_Are.you.indoors.or.outdoors, df$X201_Can.you.see.trees_numeric, df$X202_Can.you.see.the.sky_numeric, df$X203_Can.you.hear.birds.singing_numeric, df$X204_Can.you.see.or.hear.water_numeric, df$X205_Do.you.feel.in.contact.with.nature_numeric)
+n = length(predictors)
 n
 
 # Syntax error in this loop - doesn't like the reference to df$predictors[i]
 lm.fit <- list()
 for (i in 1:n) {
-  lm.fit[i] <- lm(df$momWellBeingScore ~ df$baseWellBeingScore + df$X001_Age + df$X002_Gender_numeric + df$X006_Occupation_numeric +df$baseImpulseScore:df$predictors[i])
+  lm.fit[i] <- lm(df$momWellBeingScore ~ df$baseWellBeingScore + df$X001_Age + df$X002_Gender_numeric + df$X006_Occupation_numeric + df$baseImpulseScore:predictors[i])
 }
 
 ## Last term is the interaction term between trait impulsivity and the environmental feature of interest
